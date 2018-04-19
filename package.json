@@ -1,0 +1,17 @@
+{
+  "name": "docker-brownbag",
+  "version": "1.0.0",
+  "description": "An introduction to Docker.",
+  "main": "index.js",
+  "scripts": {
+    "doctoc": "doctoc --notitle --github README.md"
+  },
+  "keywords": [
+    "docker"
+  ],
+  "author": "Simon Oulevay <simon.oulevay@gmail.com>",
+  "license": "MIT",
+  "dependencies": {
+    "doctoc": "^1.3.1"
+  }
+}
