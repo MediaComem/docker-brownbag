@@ -40,7 +40,7 @@ innovation.
 
 
 
-## Container & image basics
+## Containers & images
 
 ### Make sure Docker is working
 
@@ -94,7 +94,7 @@ Digest: sha256:9ee3b83bcaa383e5e3b657f042f4034c92cdd50c03f73166c145c9ceaea9ba7c
 Status: Downloaded newer image for ubuntu:latest
 ```
 
-An image is a **blueprint** which form the basis of containers.
+An **image** is a **blueprint** which form the basis of containers.
 This `ubuntu` image contains a headless Ubuntu operating system.
 
 You can list available images with `docker images`:
@@ -118,8 +118,8 @@ This runs an Ubuntu container.
 Running a container means **executing the specified command**, in this case `echo "hello from ubuntu"`, starting from an **image**, in this case the Ubuntu image.
 The `echo` binary that is executed is the one provided by the Ubuntu OS in the image, not your machine.
 
-If you list the running containers with `docker ps`, you will see that the container we just ran is not running any more.
-A container **stops as soon as its command is done**.
+If you list the running containers with `docker ps`, you will see that the container we just ran is *not running*.
+A container **stops as soon as the process started by its command is done**.
 Since `echo` is not a long-running command, the container stopped right away.
 
 ```bash
@@ -173,8 +173,8 @@ Docker containers are very similar to [LXC containers][lxc] which provide many
 * **File system isolation:** a container has its own file system separate from your machine's.
 
   See the difference between running `ls -la /` and `docker run --rm ubuntu ls -la /`, which will
-  show you all files at the root of your filesystem, and all files at the root of the container's
-  filesystem, respectively.
+  show you all files at the root of your file system, and all files at the root of the container's
+  file system, respectively.
 * **Network isolation:** a container doesn’t get privileged access to the sockets or interfaces of
   another container. Of course, can interact with each other through their respective network
   interface, just like they can interact with external hosts. We will see examples of this later.
@@ -642,11 +642,200 @@ It is Mon Apr 23 09:40:36 UTC 2018
 ...
 ```
 
+### Image layers
+
+A Docker image is built up from a series of layers. Each layer contains set of differences from the
+layer before it:
+
+![Docker: Image Layers](images/layers.jpg)
+
+You can list those layers by using the `docker inspect` command with an image name or ID. Let's see
+what layers the `ubuntu` image has:
+
+```bash
+$> docker inspect ubuntu
+...
+        "RootFS": {
+            "Type": "layers",
+            "Layers": [
+                "sha256:fccbfa2912f0cd6b9d13f91f288f112a2b825f3f758a4443aacb45bfc108cc74",
+                "sha256:e1a9a6284d0d24d8194ac84b372619e75cd35a46866b74925b7274c7056561e4",
+                "sha256:ac7299292f8b2f710d3b911c6a4e02ae8f06792e39822e097f9c4e9c2672b32d",
+                "sha256:a5e66470b2812e91798db36eb103c1f1e135bbe167e4b2ad5ba425b8db98ee8d",
+                "sha256:a8de0e025d94b33db3542e1e8ce58829144b30c6cd1fff057eec55b1491933c3"
+            ]
+        }
+...
+```
+
+Each layer is identified by a hash based on previous layer's hash and the state when the layer was
+created. This is similar to commit hashes in a Git repository.
+
+Let's check the layers of our first `fortune-clock:1.0` image:
+
+```bash
+$> docker inspect fortune-clock:1.0
+...
+        "RootFS": {
+            "Type": "layers",
+            "Layers": [
+                "sha256:fccbfa2912f0cd6b9d13f91f288f112a2b825f3f758a4443aacb45bfc108cc74",
+                "sha256:e1a9a6284d0d24d8194ac84b372619e75cd35a46866b74925b7274c7056561e4",
+                "sha256:ac7299292f8b2f710d3b911c6a4e02ae8f06792e39822e097f9c4e9c2672b32d",
+                "sha256:a5e66470b2812e91798db36eb103c1f1e135bbe167e4b2ad5ba425b8db98ee8d",
+                "sha256:a8de0e025d94b33db3542e1e8ce58829144b30c6cd1fff057eec55b1491933c3",
+                "sha256:3539c048e45e973cf477148af3c9c91885950e77d10e77e1db1097bd20b16129"
+            ]
+        },
+...
+```
+
+Note that the layers are the same as the `ubuntu` image, with an additional one at the end (starting
+with `3539c048e`). This additional layer contains the changes we made compared to the original
+`ubuntu` image, i.e.:
+
+* Update the package lists with `apt-get update`
+* Install the `fortune` package with `apt-get install`
+* Create the `/usr/local/bin/clock.sh` script
+
+The new hash (starting with `3539c048e`) is based both on these changes and the previous hash
+(starting with `a8de0e025`), and it **uniquely identifies this layer**.
+
+Take a look at the layers of our second `fortune-clock:2.0` image:
+
+```bash
+$> docker inspect fortune-clock:2.0
+...
+        "RootFS": {
+            "Type": "layers",
+            "Layers": [
+                "sha256:fccbfa2912f0cd6b9d13f91f288f112a2b825f3f758a4443aacb45bfc108cc74",
+                "sha256:e1a9a6284d0d24d8194ac84b372619e75cd35a46866b74925b7274c7056561e4",
+                "sha256:ac7299292f8b2f710d3b911c6a4e02ae8f06792e39822e097f9c4e9c2672b32d",
+                "sha256:a5e66470b2812e91798db36eb103c1f1e135bbe167e4b2ad5ba425b8db98ee8d",
+                "sha256:a8de0e025d94b33db3542e1e8ce58829144b30c6cd1fff057eec55b1491933c3",
+                "sha256:3539c048e45e973cf477148af3c9c91885950e77d10e77e1db1097bd20b16129",
+                "sha256:5dbae8ae43cba9e34980fd6076156503814c916453a5582646a6a34c02c68546"
+            ]
+        },
+...
+```
+
+Again, we see the same layers, including the `3539c048e` layer from the `fortune-clock:1.0` image,
+and an additional layer (starting with `5dbae8ae4`). This layer contains the following changes we
+made based on the `fortune-clock:1.0` image:
+
+* Install the `cowsay` package with `apt-get install`
+* Overwrite the `/usr/local/bin/clock.sh` script
+
+#### The top writable layer of containers
+
+When you create a new container, you add a new **writable layer** on top of the image's underlying
+layers. All changes made to the running container (i.e. creating, modifying, deleting files) are
+written to this thin writable container layer.  When the container is deleted, the writable layer is
+also deleted, unless it was committed to an image.
+
+The layers belonging to the image used as a base for your container are never modified–they are
+**read-only**. Docker uses a [union file system][union-fs] to make it work: when you write file in
+the top writable layer, the previous version(s) of the file in previous layers still exist, but are
+"hidden" by the file system; only the most recent version is seen.
+
+![Docker: Sharing Layers](images/sharing-layers.jpg)
+
+Multiple containers can therefore use the same read-only image layers, as they only modify their own
+writable top layer.
+
+#### Total image size
+
+What we've just learned about layers has several implications:
+
+* You **cannot delete files from previous layers to reduce total image size**. Assume that an
+  image's last layer contains a 1GB file. Creating a new container from that image, deleting that
+  file, and saving that state as a new image will not reclaim that gigabyte. The total image size
+  will still be the same, as the file is still present in the previous layer.
+
+  This is also similar to a Git repository, where committing a file deletion does not reclaim its
+  space from the repository's object database (as the file is still referenced by previous commits
+  in the history).
+* Since layers are read-only and incrementally built based on previous layers, **the size of common
+  layers shared by several images is only taken up once**.
+
+  If you take a look at the output of `docker images`, naively adding the displayed sizes adds up to
+  447MB, but that is **not** the size that is actually occupied by these images on your file system.
+
+  ```bash
+  $> docker images
+  REPOSITORY          TAG                 IMAGE ID            CREATED             SIZE
+  fortune-clock       2.0                 92bfbc9e4c4c        2 hours ago         205MB
+  fortune-clock       1.0                 407daed1a864        2 hours ago         156MB
+  ubuntu              latest              c9d990395902        10 days ago         113MB
+  hello-world         latest              e38bc07ac18e        11 days ago         1.85kB
+  ```
+
+  Let's add the `-s` or `--size` option to `docker ps` to display the size of our containers' file
+  systems:
+
+  ```bash
+  $> docker ps -as
+  CONTAINER ID   IMAGE               COMMAND      CREATED             STATUS                     PORTS   NAMES                    SIZE
+  4e367ffdda98   fortune-clock:2.0   "clock.sh"   About an hour ago   Up About an hour                   new-clock                0B (virtual 205MB)
+  25c9016ce01f   fortune-clock:1.0   "clock.sh"   About an hour ago   Up About an hour                   old-clock                0B (virtual 156MB)
+  4b38e523336c   fortune-clock:1.0   "bash"       2 hours ago         Exited (130) 2 hours ago           peaceful_turing          48.7MB (virtual 205MB)
+  f6b9fa680789   ubuntu              "bash"       2 hours ago         Exited (130) 2 hours ago           goofy_shirley            43MB (virtual 156MB)
+  ```
+
+  The `SIZE` column shows the size of the top writable container layer, and the total virtual size
+  of all the layers (including the top one) in parentheses.  If you look at the virual sizes, you
+  can see that:
+
+  * The virtual size of the `goofy_shirley` container is 156MB, which corresponds to the size of the
+    `fortune-clock:1.0` image, since we committed that image based on that container's state.
+  * Similarly, the virtual size of the `peaceful_turing` container is 205MB, which corresponds to
+    the size of the `fortune-clock:2.0` image.
+  * The `old-clock` and `new-clock` containers also have the same virtual sizes since they are based
+    on the same images.
+
+  Taking a look at the sizes of the top writable container layers, we can see that:
+
+  * The size of the `goofy_shirley` container's top layer is 43MB. This corresponds to the space
+    taken up by the package lists, the `fortune` package and its dependencies, and the `clock.sh`
+    script.
+
+    The virtual size of 156MB corresponds to the 113MB of the `ubuntu` base image, plus the 43MB of
+    the top layer. As we've seen above, this is also the size of the `fortune-clock:1.0` image.
+  * The size of the `peaceful_turing` container's top layer is 48.7MB. This corresponds to the space
+    taken up by the `cowsay` package and its dependencies, and the new version of the `clock.sh`
+    script.
+
+    The virtual size of 205MB corresponds to the 156MB of the `fortune-clock:1.0` base image, plus
+    the 48.7MB of the top layer. As we've seen above, this is also the size of the
+    `fortune-clock:2.0` image.
+  * The size of the `old-clock` and `new-clock` containers' top layers is 0 bytes, since no file was
+    modified in these containers. Their virtual size correspond to their base images' size.
+
+  Using all that we've learned, we can determine the total size taken up on your machine's file
+  system:
+
+  * The 113MB of the `ubuntu` image's layers, even though they are used by 3 images (the `ubuntu`
+    image itself and the `fortune-clock:1.0` and `fortune-clock:2.0` images), are taken up only
+    once.
+  * Similarly, the 43MB of the `fortune-clock:1.0` image's additional layer are taken up only once,
+    even though the layer is used by 2 images (the `fortune-clock:1.0` image itself and the
+    `fortune-clock:2.0` image).
+  * Finally, the 48.7MB of the `fortune-clock:2.0` image's additional layer are also taken up once.
+
+  Therefore, the `ubuntu`, `fortune-clock:1.0` and `fortune-clock:2.0` images take up only 205MB of
+  space on your file system, not 447MB. Basically, it's the same size as the `fortune-clock:2.0`
+  image, since it re-uses the `fortune-clock:1.0` and `ubuntu` images' layers, and the
+  `fortune-clock:1.0` image also re-uses the `ubuntu` image's layers.
+
+  The `hello-world` image takes up an additional 1.85kB on your file system, since it has no layers
+  in common with any of the other images.
+
 
 
 ## TODO
 
-* incremental file system
 * dockerfile
 * network
 * docker compose
@@ -670,6 +859,7 @@ It is Mon Apr 23 09:40:36 UTC 2018
 [hub]: https://hub.docker.com
 [hub-ubuntu]: https://hub.docker.com/_/ubuntu/
 [lxc]: https://linuxcontainers.org
+[union-fs]: https://en.wikipedia.org/wiki/UnionFS
 [what-is-a-container]: https://www.docker.com/what-container
 [what-is-docker]: https://www.docker.com/what-docker
 [wsl]: https://docs.microsoft.com/en-us/windows/wsl/install-win10
