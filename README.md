@@ -1,7 +1,7 @@
-# Docker Brown Bag
+# Docker Brown Bag: From Hello World to Swarm
 
-This document describes a step-by-step procedure that you can follow to learn the basics of Docker,
-from running a hello world container to running a multi-machine swarm.
+This document is a step-by-step procedure that you can follow to learn the basics of Docker, from
+running a hello world container to running a multi-machine swarm.
 
 <!-- START doctoc generated TOC please keep comment here to allow auto update -->
 <!-- DON'T EDIT THIS SECTION, INSTEAD RE-RUN doctoc TO UPDATE -->
@@ -9,12 +9,33 @@ from running a hello world container to running a multi-machine swarm.
 
 - [Requirements](#requirements)
 - [What is Docker?](#what-is-docker)
-- [Running containers](#running-containers)
+- [Containers & images](#containers--images)
   - [Make sure Docker is working](#make-sure-docker-is-working)
   - [Run a container from an image](#run-a-container-from-an-image)
+  - [Container isolation](#container-isolation)
+  - [Run multiple commands in a container](#run-multiple-commands-in-a-container)
+  - [Commit a container's state to an image manually](#commit-a-containers-state-to-an-image-manually)
+  - [Run containers in the background](#run-containers-in-the-background)
+  - [Access container logs](#access-container-logs)
+  - [Stop and restart containers](#stop-and-restart-containers)
+  - [Run multiple containers](#run-multiple-containers)
+  - [Image layers](#image-layers)
+    - [The top writable layer of containers](#the-top-writable-layer-of-containers)
+    - [Total image size](#total-image-size)
+- [Dockerfile](#dockerfile)
+  - [The `docker build` command](#the-docker-build-command)
+  - [Format](#format)
+  - [Build an image from a Dockerfile](#build-an-image-from-a-dockerfile)
+  - [Build cache](#build-cache)
+  - [Squashing layers](#squashing-layers)
+    - [Using the `--squash` option](#using-the---squash-option)
+  - [A Dockerfile for a Node.js application](#a-dockerfile-for-a-nodejs-application)
+- [TODO](#todo)
 - [References](#references)
 
 <!-- END doctoc generated TOC please keep comment here to allow auto update -->
+
+
 
 
 
@@ -24,6 +45,8 @@ from running a hello world container to running a multi-machine swarm.
   writing)
 * A UNIX command line (on Windows, use [Git Bash][git-bash] or the [Windows Subsystem for
   Linux][wsl])
+
+
 
 
 
@@ -37,6 +60,8 @@ developers and IT ops to unlock their potential and creates a model for better c
 innovation.
 
 * [What is a Container?][what-is-a-container]
+
+
 
 
 
@@ -290,7 +315,7 @@ CONTAINER ID        IMAGE               COMMAND             CREATED             
 f6b9fa680789        ubuntu              "bash"              13 minutes ago      Exited (130) 4 seconds ago                       goofy_shirley
 ```
 
-### Committing a container's state to an image manually
+### Commit a container's state to an image manually
 
 Retrieve the name or ID of the previous container, in this case `goofy_shirley`.  You can create a
 new image based on that container's state with the `docker commit <container> <repository:tag>`
@@ -470,7 +495,7 @@ It is Mon Apr 23 09:08:04 UTC 2018
 You attempt things that you do not even plan because of your extreme stupidity.
 ```
 
-### Running containers in the background
+### Run containers in the background
 
 Until now we've only run containers **in the foreground**, meaning that they take control of our
 console and use it to print their output.
@@ -494,7 +519,7 @@ CONTAINER ID        IMAGE               COMMAND             CREATED             
 06eb72c21805        fortune-clock:2.0   "clock.sh"          6 seconds ago       Up 9 seconds                            clock
 ```
 
-### Accessing container logs
+### Access container logs
 
 You can use the `docker logs <container>` command to see the output of a
 container running in the background:
@@ -533,7 +558,7 @@ It is Mon Apr 23 09:13:36 UTC 2018
 
 Use Ctrl-C to stop following the logs.
 
-### Stopping and restarting containers
+### Stop and restart containers
 
 You may stop a container running in the background with the `docker stop <container>` command:
 
@@ -598,7 +623,7 @@ $> docker ps
 CONTAINER ID        IMAGE               COMMAND             CREATED             STATUS              PORTS               NAMES
 ```
 
-### Running multiple containers
+### Run multiple containers
 
 Since containers have isolated processes, networks and file systems, you can of course run more than
 one at the same time:
@@ -834,12 +859,540 @@ What we've just learned about layers has several implications:
 
 
 
+
+
+## Dockerfile
+
+Manually starting containers, making changes and committing images is all well and good, but is
+prone to errors and not reproducible.
+
+Docker can build images automatically by reading the instructions from a [Dockerfile][dockerfile]. A
+Dockerfile is a text document that contains all the commands a user could call on the command line
+to assemble an image. Using the `docker build` command, users can create an automated build that
+executes several command line instructions in succession.
+
+### The `docker build` command
+
+This `docker build <context>` command builds an image from a **Dockerfile** and a **context**. The
+build's context is the set of files at a specified path on your file system (or Git repository URL).
+For example, running `docker build /foo` would expect to find a Dockerfile at the path
+`/foo/Dockerfile`, and would use the entire contents of the `/foo` directory as the build context.
+
+The build is run by the Docker daemon, not by the CLI. The first thing a build process does is send
+the entire context (recursively) to the daemon. In most cases, it's best to start with an empty
+directory as context and keep your Dockerfile in that directory. Add only the files needed for
+building the Dockerfile.
+
+**Warning:** do not use your root directory, `/`, as the build context as it causes the build to
+transfer the entire contents of your hard drive to the Docker daemon.
+
+### Format
+
+The format of a Dockerfile is:
+
+```
+# Comment
+INSTRUCTION arguments...
+INSTRUCTION arguments...
+```
+
+You can find all available instructions, such as `FROM` and `RUN`, in the [Dockerfile
+reference][dockerfile]. Many correspond to arguments or options of the Docker commands that we've
+used. For example, the `FROM` instruction corresponds to the `<image>` argument of the `docker run`
+command, and specifies what base image to use.
+
+### Build an image from a Dockerfile
+
+Move to the `fortune-clock` directory in this repository. You will see that it contains the same
+clock script we used in the `fortune-clock:2.0` image, and a Dockerfile:
+
+```bash
+$> cd fortune-clock
+$> ls
+Dockerfile clock.sh
+```
+
+The Dockerfile looks like this:
+
+```
+FROM ubuntu
+
+RUN apt-get update
+RUN apt-get install -y fortune
+RUN apt-get install -y cowsay
+COPY clock.sh /usr/local/bin/clock.sh
+RUN chmod +x /usr/local/bin/clock.sh
+```
+
+It basically replicates what we have done manually:
+
+* The `FROM ubuntu:xenial` instruction starts the build process from the `ubuntu` base image.
+* The `RUN apt-get update` instruction executes the `apt-get update` command like we did before.
+* The next two `RUN` instructions install the `fortune` and `cowsay` packages, also like we did
+  before.
+* The `COPY <src> <dest>` instruction copies a file from the build context into the file system of
+  the container.  In this case, we copy the `clock.sh` file in the build context to the
+  `/usr/local/bin/clock.sh` path in the container. When we run the build command, we will specify
+  the `fortune-clock` directory of this repository as the build context, so that its `clock.sh` file
+  is copied to the container.
+* The final `RUN` instruction makes the script executable.
+
+Remain in the `fortune-clock` directory and run the following build command.  The `-t` or `--tag
+<repo:tag>` option indicates that we want to tag the image like we did when we were using the
+`docker commit <repo:tag>` command. The last argument, `.`, indicates that the build context is the
+current directory:
+
+```bash
+$> docker build -t fortune-clock:3.0 .
+Sending build context to Docker daemon  3.072kB
+Step 1/6 : FROM ubuntu
+ ---> c9d990395902
+Step 2/6 : RUN apt-get update
+ ---> Running in 6763a261b156
+...
+Removing intermediate container 6763a261b156
+ ---> e131accf3a09
+Step 3/6 : RUN apt-get install -y fortune
+ ---> Running in a77bf3a72ded
+...
+Removing intermediate container a77bf3a72ded
+ ---> 56969308655b
+Step 4/6 : RUN apt-get install -y cowsay
+ ---> Running in b7ab94de15e3
+...
+Removing intermediate container b7ab94de15e3
+ ---> 844fbb19235c
+Step 5/6 : COPY clock.sh /usr/local/bin/clock.sh
+ ---> 9ff5a0b9ba2b
+Step 6/6 : RUN chmod +x /usr/local/bin/clock.sh
+ ---> Running in 6066a5e6a121
+Removing intermediate container 6066a5e6a121
+ ---> bcf88ef22f4c
+Successfully built bcf88ef22f4c
+Successfully tagged fortune-clock:3.0
+```
+
+As you can see, Docker:
+
+* Uploaded to build context (i.e. the contents of the `fortune-clock` directory) to the Docker
+  deamon.
+* Ran each instruction in the Dockerfile one by one, creating an intermediate container each time,
+  based on the previous state.
+* Created an image with the final state, and the specified tag (i.e. `fortune-clock:3.0`).
+
+You can see that new image in the list of images:
+
+```bash
+$> docker images
+REPOSITORY          TAG                 IMAGE ID            CREATED             SIZE
+fortune-clock       3.0                 bcf88ef22f4c        6 minutes ago       205MB
+fortune-clock       2.0                 92bfbc9e4c4c        3 hours ago         205MB
+fortune-clock       1.0                 407daed1a864        3 hours ago         156MB
+ubuntu              latest              c9d990395902        10 days ago         113MB
+hello-world         latest              e38bc07ac18e        11 days ago         1.85kB
+```
+
+You can also run a container based on it like we did before:
+
+```bash
+$> docker run --rm fortune-clock:3.0 clock.sh
+It is Mon Apr 23 12:10:16 UTC 2018
+ _____________________________________
+/ Today is National Existential Ennui \
+\ Awareness Day.                      /
+ -------------------------------------
+        \   ^__^
+         \  (oo)\_______
+            (__)\       )\/\
+                ||----w |
+                ||     ||
+```
+
+Use Ctrl-C to stop it.
+
+Let's take a look at that new image's layers:
+
+```bash
+$> docker inspect fortune-clock:3.0
+...
+        "RootFS": {
+            "Type": "layers",
+            "Layers": [
+                "sha256:fccbfa2912f0cd6b9d13f91f288f112a2b825f3f758a4443aacb45bfc108cc74",
+                "sha256:e1a9a6284d0d24d8194ac84b372619e75cd35a46866b74925b7274c7056561e4",
+                "sha256:ac7299292f8b2f710d3b911c6a4e02ae8f06792e39822e097f9c4e9c2672b32d",
+                "sha256:a5e66470b2812e91798db36eb103c1f1e135bbe167e4b2ad5ba425b8db98ee8d",
+                "sha256:a8de0e025d94b33db3542e1e8ce58829144b30c6cd1fff057eec55b1491933c3",
+                "sha256:89d694b3a7a4bd236c161894c5aae7d6f86ec3e42c6b4a71032774e60d2d8e4a",
+                "sha256:a96e0ea28068686e2bafd181958407d722e179ea5cc3138be5b130424f4925f1",
+                "sha256:d57cb59abf79bbe2e4150450574110b862379ecf44d3a23956a965477a0a1848",
+                "sha256:0b34384d1bf850620090e95b07cfcf2d552ec869b8f0ea574d8ae81acc2334d2",
+                "sha256:a9b1e603de7dd53e2d6adcf3538d454a350e1384a4311b6d686151fabfa450fb"
+            ]
+        },
+...
+```
+
+The first few layers (up to the one starting with `a8de0e025`) are the same as before, since they
+are the `ubuntu` image's base layers. The last 5 layers, however, are new.
+
+Basically, Docker created a layer for **each instruction in the Dockerfile**. Since we have 4 `RUN`
+instructions and 1 `COPY` instruction in the Dockerfile we used, there are 5 additional layers.
+
+### Build cache
+
+Re-run the same build command:
+
+```bash
+$> docker build -t fortune-clock:3.0 .
+Sending build context to Docker daemon  3.072kB
+Step 1/6 : FROM ubuntu
+ ---> c9d990395902
+Step 2/6 : RUN apt-get update
+ ---> Using cache
+ ---> e131accf3a09
+Step 3/6 : RUN apt-get install -y fortune
+ ---> Using cache
+ ---> 56969308655b
+Step 4/6 : RUN apt-get install -y cowsay
+ ---> Using cache
+ ---> 844fbb19235c
+Step 5/6 : COPY clock.sh /usr/local/bin/clock.sh
+ ---> Using cache
+ ---> 9ff5a0b9ba2b
+Step 6/6 : RUN chmod +x /usr/local/bin/clock.sh
+ ---> Using cache
+ ---> bcf88ef22f4c
+Successfully built bcf88ef22f4c
+Successfully tagged fortune-clock:3.0
+```
+
+It was much faster this time. As you can see, Docker is keeping a **cache** of the previously built
+layers. Since you have not changed the instructions in the Dockerfile, it assumes that the result
+will be the same and reuses the same layer.
+
+Make a change to the `clock.sh` script in the `fortune-clock` directory. For example, add a new line
+or a comment:
+
+```bash
+#!/bin/bash
+trap "exit" SIGKILL SIGTERM SIGHUP SIGINT EXIT
+
+# Print the date and a fortune every 5 seconds.
+while true; do
+  echo It is $(date)
+  /usr/games/fortune | /usr/games/cowsay
+  echo
+  sleep 5
+done
+```
+
+Re-run the same build command:
+
+```bash
+$> docker build -t fortune-clock:3.0 .
+Sending build context to Docker daemon  3.072kB
+Step 1/6 : FROM ubuntu
+ ---> c9d990395902
+Step 2/6 : RUN apt-get update
+ ---> Using cache
+ ---> e131accf3a09
+Step 3/6 : RUN apt-get install -y fortune
+ ---> Using cache
+ ---> 56969308655b
+Step 4/6 : RUN apt-get install -y cowsay
+ ---> Using cache
+ ---> 844fbb19235c
+Step 5/6 : COPY clock.sh /usr/local/bin/clock.sh
+ ---> 8575c9e05b3c
+Step 6/6 : RUN chmod +x /usr/local/bin/clock.sh
+ ---> Running in 037dc123faaa
+Removing intermediate container 037dc123faaa
+ ---> 99c24c7e3c1c
+Successfully built 99c24c7e3c1c
+Successfully tagged fortune-clock:3.0
+```
+
+Docker is still using its cache for the first 3 commands (the `apt-get update` and the installation
+of the `fortune` and `cowsay` packages), since they are executed before the `clock.sh` script is
+copied, and are therefore not affected by the change.
+
+The `COPY` instruction is executed without cache, however, since Docker detects that the `clock.sh`
+script has changed.
+
+Consequently, all further instructions after that `COPY` cannot use the cache, since the state upon
+which they are based has changed. Therefore, the last `RUN` instruction also does not use the cache.
+
+### Squashing layers
+
+It is considered good practice to minimize the number of layers in a Docker image:
+
+* There will be fewer layers to download (when pulling an image from the Docker hub).
+* The build will be faster as larger chunks of the build process will be cached.
+
+There are two things we can do to simply our current Dockerfile.
+The first is to make the `clock.sh` script executable so that we don't need the last `RUN`
+instruction of the Dockerfile any more. The `COPY` instruction conserves file permissions:
+
+```bash
+$> chmod +x clock.sh
+```
+
+The second is to use only 1 `RUN` instruction instead of 3.
+Write a `RUN` instruction like this will only create 1 layer:
+
+```
+RUN apt-get update && apt-get install -y fortune && apt-get install -y cowsay
+```
+
+You may use slashes to split the command into multiple lines for readability:
+
+```
+RUN apt-get update && \
+    apt-get install -y fortune && \
+    apt-get install -y cowsay
+```
+
+Your final Dockerfile should look like this:
+
+```
+FROM ubuntu
+
+RUN apt-get update && \
+    apt-get install -y fortune && \
+    apt-get install -y cowsay
+
+COPY clock.sh /usr/local/bin/clock.sh
+```
+
+Run the same build command as before:
+
+```bash
+$> docker build -t fortune-clock:3.0 .
+Sending build context to Docker daemon  3.072kB
+Step 1/3 : FROM ubuntu
+ ---> c9d990395902
+Step 2/3 : RUN apt-get update &&     apt-get install -y fortune &&     apt-get install -y cowsay
+...
+ ---> Running in 7a652ff4ab0d
+Removing intermediate container 7a652ff4ab0d
+ ---> 3ad4e786e5eb
+Step 3/3 : COPY clock.sh /usr/local/bin/clock.sh
+ ---> 4fa0c71e952c
+Successfully built 4fa0c71e952c
+Successfully tagged fortune-clock:3.0
+```
+
+If you inspect the resulting image, you will see that there are only 2 new layers, one for the `RUN`
+instruction, and one for the `COPY` instruction:
+
+```
+$> docker inspect fortune-clock:3.0
+...
+        "RootFS": {
+            "Type": "layers",
+            "Layers": [
+                "sha256:fccbfa2912f0cd6b9d13f91f288f112a2b825f3f758a4443aacb45bfc108cc74",
+                "sha256:e1a9a6284d0d24d8194ac84b372619e75cd35a46866b74925b7274c7056561e4",
+                "sha256:ac7299292f8b2f710d3b911c6a4e02ae8f06792e39822e097f9c4e9c2672b32d",
+                "sha256:a5e66470b2812e91798db36eb103c1f1e135bbe167e4b2ad5ba425b8db98ee8d",
+                "sha256:a8de0e025d94b33db3542e1e8ce58829144b30c6cd1fff057eec55b1491933c3",
+                "sha256:3395f7dea253615f40e90014d99f91636ac4da015653e93c82c8f3296839d7d9",
+                "sha256:fc263405dc2cbb4ae56ba7eabad0b0fdc5b39a64adf7239e907486f460f6a085"
+            ]
+        },
+...
+```
+
+Modify the `clock.sh` script again (e.g. add a comment or a new line) and re-run the same build
+command:
+
+```bash
+$> docker build -t fortune-clock:3.0 .
+Sending build context to Docker daemon  3.072kB
+Step 1/3 : FROM ubuntu
+ ---> c9d990395902
+Step 2/3 : RUN apt-get update &&     apt-get install -y fortune &&     apt-get install -y cowsay
+ ---> Using cache
+ ---> 3ad4e786e5eb
+Step 3/3 : COPY clock.sh /usr/local/bin/clock.sh
+ ---> 29ac649d902f
+Successfully built 29ac649d902f
+Successfully tagged fortune-clock:3.0
+```
+
+As you can see, the entire `RUN` instruction is cached again, but only 1 layer had to be retrieved
+from the cache. Then the `COPY` instruction is executed without the cache, as expected.
+
+#### Using the `--squash` option
+
+Another way to squash layers is to add the `--squash` option to the build command:
+
+```bash
+$> docker build -t fortune-clock:3.0 --squash .
+Sending build context to Docker daemon  3.072kB
+Step 1/3 : FROM ubuntu
+ ---> c9d990395902
+Step 2/3 : RUN apt-get update &&     apt-get install -y fortune &&     apt-get install -y cowsay
+ ---> Using cache
+ ---> 3ad4e786e5eb
+Step 3/3 : COPY clock.sh /usr/local/bin/clock.sh
+ ---> Using cache
+ ---> 29ac649d902f
+Successfully built e036c40ed4c1
+Successfully tagged fortune-clock:3.0
+```
+
+If you inspect the resulting image, you will see that there is only 1 additional layer compared to
+the base `ubuntu` image (in this case, the one starting with `56286e292`):
+
+```bash
+$> docker build -t fortune-clock:3.0 --squash .
+...
+        "RootFS": {
+            "Type": "layers",
+            "Layers": [
+                "sha256:fccbfa2912f0cd6b9d13f91f288f112a2b825f3f758a4443aacb45bfc108cc74",
+                "sha256:e1a9a6284d0d24d8194ac84b372619e75cd35a46866b74925b7274c7056561e4",
+                "sha256:ac7299292f8b2f710d3b911c6a4e02ae8f06792e39822e097f9c4e9c2672b32d",
+                "sha256:a5e66470b2812e91798db36eb103c1f1e135bbe167e4b2ad5ba425b8db98ee8d",
+                "sha256:a8de0e025d94b33db3542e1e8ce58829144b30c6cd1fff057eec55b1491933c3",
+                "sha256:56286e2923cafe6b814ae99b8ad2a104be49c870accffa468c17add09f8e2a35"
+            ]
+        },
+...
+```
+
+When using the `--squash` option, the new layers are combined into a new image with a single new
+layer once the build process is complete. Squashing does not destroy any existing image, rather it
+creates a new image with the content of the squashed layers. This effectively makes it look like all
+Dockerfile commands were created with a single layer.
+
+Squashing layers can be beneficial if your Dockerfile produces multiple layers modifying the same
+files, for example, files that are created in one step, and removed in another step. For other
+use cases, squashing images may actually have a negative impact on performance; squashed layers
+cannot be reused between images, as they always have a new hash regardless of whether they have the
+same content.
+
+Note that the `--squash` option is an experimental feature, and should not be considered stable.
+
+### A Dockerfile for a Node.js application
+
+The `todo` directory contains a sample Node.js application to manage to-do notes.
+
+If you wanted to run this application on your machine, you would need to:
+
+* Install and run a [MongoDB][mongo] database (version 3).
+* Install [Node.js][node] (version 8).
+* Run `npm install` in the application's directory to install its dependencies.
+* Run `npm start` in the application's directory to start it.
+
+That takes some work if you don't already have the database or Node.js, or if you're not used to
+installing and managing them.  Let's start with the application itself. With what we've learned so
+far, you could write a Dockerfile that installs Node.js, installs the application's dependencies and
+starts it.
+
+However, don't forget that images can be shared on the [Docker hub][hub]. Popular frameworks and
+languages already have official (or non-official) images you can use. For example, the [`node`
+image][hub-node] already has Node.js installed: you only need to base your own image off of it and
+add your application's code.
+
+You will find a minimal Dockerfile to do that in the `Dockerfile.min` file in the `todo` directory
+of this repository. This is what it contains:
+
+```
+FROM node:8
+
+WORKDIR /usr/src/app
+COPY . /usr/src/app/
+RUN npm install
+
+CMD [ "npm", "start" ]
+```
+
+Here's what the instructions are for:
+
+* `FROM node:8` instructs Docker to build from the official `node:8` image (which contains the
+  latest Node.js 8 version).
+* `WORKDIR /usr/src/app` indicates the working directory in which commands are run (e.g. when using
+  a `RUN` instruction).
+* `COPY . /usr/src/app` copies the entire contents of the build context to the `/usr/src/app`
+  directory in the container.
+* `RUN npm install` executes an `npm install` command to install the application's dependencies. Due
+  to the previous `WORKDIR` instruction, this is executed in the `/usr/src/app` directory of the
+  container.
+* `CMD [ "npm", "start" ]` indicates the default command that will be executed when running this
+  container. This is equivalent to the arguments we passed to `docker run <image> <command...>`. If
+  a default command is specified in the image with `CMD`, you can simply use `docker run <image>` to
+  run that command.
+
+Move to the `todo` directory and build a new image based on that Dockerfile:
+
+```bash
+$> cd todo
+$> docker build -t todo .
+Sending build context to Docker daemon  60.93kB
+Step 1/5 : FROM node:8
+ ---> 4635bc7d130c
+Step 2/5 : WORKDIR /usr/src/app
+ ---> Using cache
+ ---> 9e5af697d233
+Step 3/5 : COPY . /usr/src/app/
+ ---> 0c7a80e4fedc
+Step 4/5 : RUN npm install
+ ---> Running in 0122811036db
+added 142 packages in 2.822s
+Removing intermediate container 0122811036db
+ ---> 13546c3ce198
+Step 5/5 : CMD [ "npm", "start" ]
+ ---> Running in 8becf1bd710d
+Removing intermediate container 8becf1bd710d
+ ---> a8dc25bf2972
+Successfully built a8dc25bf2972
+Successfully tagged todo:latest
+```
+
+You can now attempt to run the application:
+
+```bash
+$> docker run --rm todo
+
+> todo@0.0.0 start /usr/src/app
+> node ./bin/www
+
+{ MongoNetworkError: failed to connect to server [localhost:27017] on first connect [MongoNetworkError: connect ECONNREFUSED 127.0.0.1:27017]
+    ... }
+npm ERR! code ELIFECYCLE
+npm ERR! errno 1
+npm ERR! todo@0.0.0 start: `node ./bin/www`
+npm ERR! Exit status 1
+npm ERR!
+npm ERR! Failed at the todo@0.0.0 start script.
+npm ERR! This is probably not a problem with npm. There is likely additional logging output above.
+
+npm ERR! A complete log of this run can be found in:
+npm ERR!     /root/.npm/_logs/2018-04-23T15_27_29_784Z-debug.log
+```
+
+It doesn't work because it attempts to connect to a MongoDB database on `localhost:27017` and there
+is no such thing. Even if you do actually have a MongoDB database running on that port for
+development, remember that each container has its own isolated network stack, so it can't reach
+services listening on your machine's ports by default.
+
+
+
+
+
 ## TODO
 
-* dockerfile
+* dockerignore
+* share host file system (volume)
 * network
 * docker compose
 * docker swarm
+* bonus: multi-stage builds
+
+
 
 
 
@@ -847,6 +1400,9 @@ What we've just learned about layers has several implications:
 
 * [What is Docker?][what-is-docker]
 * [What is a Container?][what-is-a-container]
+* [Docker Security][docker-security]
+* [Docker Storage Drivers][docker-storage-drivers]
+* [Dockerfile Reference][dockerfile]
 
 
 
@@ -854,11 +1410,15 @@ What we've just learned about layers has several implications:
 [docker-ce]: https://www.docker.com/community-edition
 [docker-security]: https://docs.docker.com/engine/security/security/
 [docker-storage-drivers]: https://docs.docker.com/storage/storagedriver/
+[dockerfile]: https://docs.docker.com/engine/reference/builder/
 [fortune]: https://en.wikipedia.org/wiki/Fortune_(Unix)
 [git-bash]: https://git-scm.com/downloads
 [hub]: https://hub.docker.com
+[hub-mongo]: https://hub.docker.com/_/mongo/
+[hub-node]: https://hub.docker.com/_/node/
 [hub-ubuntu]: https://hub.docker.com/_/ubuntu/
 [lxc]: https://linuxcontainers.org
+[mongo]: https://www.mongodb.com
 [union-fs]: https://en.wikipedia.org/wiki/UnionFS
 [what-is-a-container]: https://www.docker.com/what-container
 [what-is-docker]: https://www.docker.com/what-docker
