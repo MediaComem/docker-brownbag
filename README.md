@@ -1,5 +1,8 @@
 # Docker Brown Bag
 
+This document describes a step-by-step procedure that you can follow to learn the basics of Docker,
+from running a hello world container to running a multi-machine swarm.
+
 <!-- START doctoc generated TOC please keep comment here to allow auto update -->
 <!-- DON'T EDIT THIS SECTION, INSTEAD RE-RUN doctoc TO UPDATE -->
 
@@ -37,11 +40,11 @@ innovation.
 
 
 
-## Running containers
+## Container & image basics
 
 ### Make sure Docker is working
 
-Run the `hello-world` container to make sure everything is installed correctly:
+Run a `hello-world` container to make sure everything is installed correctly:
 
 ```bash
 $> docker run hello-world
@@ -112,7 +115,7 @@ hello from ubuntu
 
 This runs an Ubuntu container.
 
-Running a container means **executing the specified command**, in this case `echo "hello from ubuntu"`, starting from an image, in this case the Ubuntu image.
+Running a container means **executing the specified command**, in this case `echo "hello from ubuntu"`, starting from an **image**, in this case the Ubuntu image.
 The `echo` binary that is executed is the one provided by the Ubuntu OS in the image, not your machine.
 
 If you list the running containers with `docker ps`, you will see that the container we just ran is not running any more.
@@ -129,14 +132,16 @@ You can see the stopped container with `docker ps -a`, which lists all container
 ```bash
 $> docker ps -a
 CONTAINER ID        IMAGE               COMMAND                  CREATED             STATUS                      PORTS               NAMES
-3431b4ff3eb0        ubuntu              "echo 'hello from ub…"   51 seconds ago      Exited (0) 54 seconds ago                       frosty_jepsen
+d042ed58ef63        ubuntu              "echo 'hello from ub…"   10 seconds ago      Exited (0) 11 seconds ago                       relaxed_galileo
+02bbe5e66c15        hello-world         "/hello"                 42 seconds ago      Exited (0) 42 seconds ago                       jovial_jones
 ```
 
-You can remove a stopped container with `docker rm`, using either its ID or its name:
+You can remove a stopped container or containers with `docker rm`, using either its ID or its name:
 
 ```bash
-$> docker rm frosty_jepsen
-frosty_jepsen
+$> docker rm relaxed_galileo 02bbe5e66c15
+relaxed_galileo
+02bbe5e66c15
 $> docker ps -a
 CONTAINER ID        IMAGE               COMMAND             CREATED             STATUS              PORTS               NAMES
 ```
@@ -153,8 +158,26 @@ No new container should appear in the list:
 ```bash
 $> docker ps -a
 CONTAINER ID        IMAGE               COMMAND                  CREATED             STATUS                      PORTS               NAMES
-3431b4ff3eb0        ubuntu              "echo 'hello from ub…"   2 minutes ago       Exited (0) 2 minutes ago                        frosty_jepsen
 ```
+
+### Container isolation
+
+Docker containers are very similar to [LXC containers][lxc] which provide many
+[security][docker-security] features.  When you start a container with `docker run`, you get:
+
+* **Process isolation:** processes running within a container cannot see, and even less
+  affect, processes running in another container, or in the host system.
+
+  See the difference between running `ps -e` and `docker run --rm ubuntu ps -e`, which will show you
+  all running processes on your machine, and the same as seen from within a container, respectively.
+* **File system isolation:** a container has its own file system separate from your machine's.
+
+  See the difference between running `ls -la /` and `docker run --rm ubuntu ls -la /`, which will
+  show you all files at the root of your filesystem, and all files at the root of the container's
+  filesystem, respectively.
+* **Network isolation:** a container doesn’t get privileged access to the sockets or interfaces of
+  another container. Of course, can interact with each other through their respective network
+  interface, just like they can interact with external hosts. We will see examples of this later.
 
 ### Run multiple commands in a container
 
@@ -168,83 +191,154 @@ $> docker run -it ubuntu bash
 root@e07f81d7941d:/#
 ```
 
+You can now run any command you want within the running container:
+
+```bash
+root@e07f81d7941d:/# date
+Fri Apr 20 13:20:32 UTC 2018
+```
+
+You can make changes to the container. Since this is an Ubuntu container, you can install packages.
+Update of the package lists first with `apt-get update`:
+
+```bash
+root@e07f81d7941d:/# apt-get update
+Get:1 http://archive.ubuntu.com/ubuntu xenial InRelease [247 kB]
+...
+Fetched 25.1 MB in 1s (12.9 MB/s)
+Reading package lists... Done
+```
+
+Install the `fortune` package:
+
+```bash
+root@e07f81d7941d:/# apt-get install -y fortune
+Reading package lists... Done
+Building dependency tree
+Reading state information... Done
+Note, selecting 'fortune-mod' instead of 'fortune'
+The following additional packages will be installed:
+  fortunes-min librecode0
+Suggested packages:
+  fortunes x11-utils bsdmainutils
+The following NEW packages will be installed:
+  fortune-mod fortunes-min librecode0
+0 upgraded, 3 newly installed, 0 to remove and 5 not upgraded.
+Need to get 625 kB of archives.
+After this operation, 2184 kB of additional disk space will be used.
+Get:1 http://archive.ubuntu.com/ubuntu xenial/main amd64 librecode0 amd64 3.6-22 [523 kB]
+...
+Fetched 625 kB in 0s (3250 kB/s)
+...
+```
+
+The [`fortune`][fortune] command prints a quotation/joke such as the ones found in fortune cookies
+(hence the name):
+
+```bash
+root@e07f81d7941d:/# /usr/games/fortune
+Your motives for doing whatever good deed you may have in mind will be
+misinterpreted by somebody.
+```
+
+Let's create a fortune clock that tells the time and a fortune every 5 seconds. Run the following
+multiline command to save a bash script to `/usr/local/bin/clock.sh`:
+
 ```bash
 root@e07f81d7941d:/# cat << EOF > /usr/local/bin/clock.sh
 #!/bin/bash
 trap "exit" SIGKILL SIGTERM SIGHUP SIGINT EXIT
 while true; do
   echo It is \$(date)
-  sleep 1
+  /usr/games/fortune
+  echo
+  sleep 5
 done
 EOF
 ```
+
+Make the script executable:
 
 ```bash
 root@e07f81d7941d:/# chmod +x /usr/local/bin/clock.sh
 ```
 
+Make sure it works:
+
 ```bash
 root@e07f81d7941d:/# clock.sh
-It is Fri Apr 20 14:22:05 UTC 2018
-It is Fri Apr 20 14:22:06 UTC 2018
-It is Fri Apr 20 14:22:07 UTC 2018
-It is Fri Apr 20 14:22:08 UTC 2018
-It is Fri Apr 20 14:22:09 UTC 2018
-It is Fri Apr 20 14:22:11 UTC 2018
-It is Fri Apr 20 14:22:12 UTC 2018
+It is Mon Apr 23 08:47:37 UTC 2018
+You have no real enemies.
+
+It is Mon Apr 23 08:47:42 UTC 2018
+Beware of a dark-haired man with a loud tie.
+
+It is Mon Apr 23 08:47:47 UTC 2018
+If you sow your wild oats, hope for a crop failure.
 ```
 
-Use Ctrl-C to stop the script.
+Use Ctrl-C to stop the clock script. Then use `exit` to stop the Bash shell:
 
 ```bash
 root@e07f81d7941d:/# exit
 ```
 
+Since the Bash process has exited, the container has stopped:
 
-
-## Creating images
+```bash
+CONTAINER ID        IMAGE               COMMAND             CREATED             STATUS                       PORTS               NAMES
+f6b9fa680789        ubuntu              "bash"              13 minutes ago      Exited (130) 4 seconds ago                       goofy_shirley
+```
 
 ### Committing a container's state to an image manually
 
-```bash
-$> docker ps -a
-CONTAINER ID        IMAGE               COMMAND             CREATED             STATUS                        PORTS               NAMES
-e07f81d7941d        ubuntu              "bash"              8 minutes ago       Exited (130) 18 seconds ago                       clever_hermann
-```
+Retrieve the name or ID of the previous container, in this case `goofy_shirley`.  You can create a
+new image based on that container's state with the `docker commit <container> <repository:tag>`
+command:
 
 ```bash
-$> docker commit clever_hermann clock:1.0
-sha256:2228d4cc8a5d01bd99eb48cafb24d31072d17439fe1b523c355069df556cb7d0
+$> docker commit goofy_shirley fortune-clock:1.0
+sha256:407daed1a864b14a4ab071f274d3058591d2b94f061006e88b7fc821baf8232e
 ```
+
+You can see the new image in the list of images:
 
 ```bash
 $> docker images
-REPOSITORY          TAG                 IMAGE ID            CREATED                  SIZE
-clock               1.0                 2228d4cc8a5d        Less than a second ago   113MB
-clock               latest              2228d4cc8a5d        Less than a second ago   113MB
-ubuntu              latest              c9d990395902        7 days ago               113MB
-hello-world         latest              e38bc07ac18e        8 days ago               1.85kB
+REPOSITORY          TAG                 IMAGE ID            CREATED             SIZE
+fortune-clock       1.0                 407daed1a864        9 seconds ago       156MB
+ubuntu              latest              c9d990395902        10 days ago         113MB
+hello-world         latest              e38bc07ac18e        11 days ago         1.85kB
 ```
 
+That image contains the `/usr/local/bin/clock.sh` script we created, so we can run it directly with
+`docker run <image> <command>`:
+
 ```bash
-$> docker run --rm clock clock.sh
-It is Fri Apr 20 14:31:08 UTC 2018
-It is Fri Apr 20 14:31:09 UTC 2018
-It is Fri Apr 20 14:31:10 UTC 2018
+$> docker run --rm fortune-clock:1.0 clock.sh
+It is Mon Apr 23 08:55:54 UTC 2018
+You will have good luck and overcome many hardships.
+
+It is Mon Apr 23 08:55:59 UTC 2018
+While you recently had your problems on the run, they've regrouped and
+are making another attack.
 ```
 
-Use Ctrl-C to stop the script.
+Use Ctrl-C to stop the script (the container will stop and be removed automatically thanks to the
+`--rm` option).
+
+That's nice, but let's create a fancier version of our clock. Run a new Bash shell based on our
+`fortune-clock:1.0` image:
 
 ```bash
-root@c34111c82c9b:/# apt-get update
-Get:1 http://security.ubuntu.com/ubuntu xenial-security InRelease [102 kB]
-...
-Fetched 25.1 MB in 2s (12.3 MB/s)
-Reading package lists... Done
+$> docker run -it fortune-clock:1.0 bash
+root@4b38e523336c:/#
 ```
 
+Install the `cowsay` package:
+
 ```bash
-root@c34111c82c9b:/# apt-get install -y cowsay
+root@4b38e523336c:/# apt-get install -y cowsay
 Reading package lists... Done
 Building dependency tree
 Reading state information... Done
@@ -263,69 +357,101 @@ Need to get 9432 kB of archives.
 After this operation, 44.8 MB of additional disk space will be used.
 Get:1 http://archive.ubuntu.com/ubuntu xenial-updates/main amd64 perl-base amd64 5.22.1-9ubuntu0.3 [1286 kB]
 ...
-Fetched 9432 kB in 0s (19.5 MB/s)
-debconf: delaying package configuration, since apt-utils is not installed
-(Reading database ... 4768 files and directories currently installed.)
-Preparing to unpack .../perl-base_5.22.1-9ubuntu0.3_amd64.deb ...
-Unpacking perl-base (5.22.1-9ubuntu0.3) over (5.22.1-9ubuntu0.2) ...
-Setting up perl-base (5.22.1-9ubuntu0.3) ...
+Fetched 9432 kB in 0s (17.5 MB/s)
 ...
 ```
 
+Overwrite the clock script with this multiline command. The output of the `fortune` command is now
+piped into the `cowsay` command:
+
 ```bash
-root@e07f81d7941d:/# cat << EOF > /usr/local/bin/clock.sh
+root@4b38e523336c:/# cat << EOF > /usr/local/bin/clock.sh
 #!/bin/bash
 trap "exit" SIGKILL SIGTERM SIGHUP SIGINT EXIT
 while true; do
   echo It is \$(date)
   /usr/games/fortune | /usr/games/cowsay
+  echo
   sleep 5
 done
 EOF
 ```
 
-```bash
-$> docker ps -a
-CONTAINER ID        IMAGE               COMMAND             CREATED             STATUS                       PORTS               NAMES
-c34111c82c9b        clock               "bash"              9 minutes ago       Exited (130) 3 minutes ago                       youthful_chaplygin
-e07f81d7941d        ubuntu              "bash"              14 minutes ago      Exited (130) 5 minutes ago                       clever_hermann
-```
+Test our improved clock script:
 
 ```bash
-$> docker commit youthful_chaplygin clock:2.0
-sha256:eac74c6f407736a82ff7f4442c33d116030cb0d255507edf0923da0de7f67289
-```
+root@4b38e523336c:/# clock.sh
+It is Mon Apr 23 09:02:21 UTC 2018
+ ____________________________________
+/ Look afar and see the end from the \
+\ beginning.                         /
+ ------------------------------------
+        \   ^__^
+         \  (oo)\_______
+            (__)\       )\/\
+                ||----w |
+                ||     ||
 
-```bash
-$> docker images
-REPOSITORY          TAG                 IMAGE ID            CREATED                  SIZE
-clock               2.0                 eac74c6f4077        3 minutes ago            204MB
-clock               1.0                 2228d4cc8a5d        Less than a second ago   113MB
-clock               latest              eac74c6f4077        Less than a second ago   113MB
-ubuntu              latest              c9d990395902        7 days ago               113MB
-hello-world         latest              e38bc07ac18e        8 days ago               1.85kB
-```
-
-```bash
-$> docker run --rm clock clock.sh
-It is Fri Apr 20 14:44:54 UTC 2018
+It is Mon Apr 23 09:02:26 UTC 2018
  _______________________________________
-/ You can create your own opportunities \
-| this week. Blackmail a senior         |
-\ executive.                            /
+/ One of the most striking differences  \
+| between a cat and a lie is that a cat |
+| has only nine lives.                  |
+|                                       |
+| -- Mark Twain, "Pudd'nhead Wilson's   |
+\ Calendar"                             /
  ---------------------------------------
         \   ^__^
          \  (oo)\_______
             (__)\       )\/\
                 ||----w |
                 ||     ||
-It is Fri Apr 20 14:44:59 UTC 2018
- ___________________________________
-/ Repartee is something we think of \
-| twenty-four hours too late.       |
-|                                   |
-\ -- Mark Twain                     /
- -----------------------------------
+```
+
+Much better. Exit Bash to stop the container:
+
+```bash
+root@4b38e523336c:/# exit
+```
+
+You should now have to stopped container. The one in which we created the original clock script, and
+the newest one we just stopped:
+
+```bash
+$> docker ps -a
+CONTAINER ID        IMAGE               COMMAND             CREATED             STATUS                        PORTS               NAMES
+4b38e523336c        fortune-clock:1.0   "bash"              4 minutes ago       Exited (130) 21 seconds ago                       peaceful_turing
+f6b9fa680789        ubuntu              "bash"              27 minutes ago      Exited (130) 13 minutes ago                       goofy_shirley
+```
+
+Let's create an image from that latest container, in this case `peaceful_turing`:
+
+```bash
+$> docker commit peaceful_turing fortune-clock:2.0
+sha256:92bfbc9e4c4c68a8427a9c00f26aadb6f7112b41db19a53d4b29d1d6f68de25f
+```
+
+As before, the image is available in the list of images:
+
+```bash
+$> docker images
+REPOSITORY          TAG                 IMAGE ID            CREATED             SIZE
+fortune-clock       2.0                 92bfbc9e4c4c        24 seconds ago      205MB
+fortune-clock       1.0                 407daed1a864        11 minutes ago      156MB
+ubuntu              latest              c9d990395902        10 days ago         113MB
+hello-world         latest              e38bc07ac18e        11 days ago         1.85kB
+```
+
+You can run it as before:
+
+```bash
+$> docker run --rm fortune-clock:2.0 clock.sh
+It is Mon Apr 23 09:06:21 UTC 2018
+ ________________________________________
+/ Living your life is a task so          \
+| difficult, it has never been attempted |
+\ before.                                /
+ ----------------------------------------
         \   ^__^
          \  (oo)\_______
             (__)\       )\/\
@@ -335,25 +461,69 @@ It is Fri Apr 20 14:44:59 UTC 2018
 
 Use Ctrl-C to stop the script (and the container).
 
-Note that your previous image is still available under the `1.0` version.
+Your previous image is still available under the `1.0` tag.
 You can run it again:
 
 ```bash
-$> docker run --rm clock:1.0 clock.sh
-It is Fri Apr 20 14:51:25 UTC 2018
-It is Fri Apr 20 14:51:26 UTC 2018
-It is Fri Apr 20 14:51:27 UTC 2018
+$> docker run --rm fortune-clock:1.0 clock.sh
+It is Mon Apr 23 09:08:04 UTC 2018
+You attempt things that you do not even plan because of your extreme stupidity.
 ```
 
-Exit with Ctrl-C, then re-run the `2.0` version:
+### Running containers in the background
+
+Until now we've only run containers **in the foreground**, meaning that they take control of our
+console and use it to print their output.
+
+You can run a container **in the background** by adding the `-d` or `--detach` option.  Let's also
+use the `--name` option to give it a specific name instead of using the default randomly generated
+one:
 
 ```bash
-$> docker run --rm clock:2.0 clock.sh
-It is Fri Apr 20 14:51:31 UTC 2018
+$> docker run -d --name clock fortune-clock:2.0 clock.sh
+06eb72c218051c77148a95268a2be45a57379c330ac75a7260c16f89040279e6
+```
+
+This time, the `docker run` command simply prints the ID of the container it
+has launched, and exits immediately.  But you can see that the container is
+indeed running with `docker ps`, and that it has the correct name:
+
+```bash
+$> docker ps
+CONTAINER ID        IMAGE               COMMAND             CREATED             STATUS              PORTS               NAMES
+06eb72c21805        fortune-clock:2.0   "clock.sh"          6 seconds ago       Up 9 seconds                            clock
+```
+
+### Accessing container logs
+
+You can use the `docker logs <container>` command to see the output of a
+container running in the background:
+
+```bash
+$> docker logs clock
+It is Mon Apr 23 09:12:06 UTC 2018
  _____________________________________
-/ Your goose is cooked. (Your current \
-\ chick is burned up too!)            /
+< Excellent day to have a rotten day. >
  -------------------------------------
+        \   ^__^
+         \  (oo)\_______
+            (__)\       )\/\
+                ||----w |
+                ||     ||
+...
+```
+
+Add the `-f` option to keep following the log output in real time:
+
+```bash
+$> docker logs -f clock
+It is Mon Apr 23 09:13:36 UTC 2018
+ _________________________________________
+/ I have never let my schooling interfere \
+| with my education.                      |
+|                                         |
+\ -- Mark Twain                           /
+ -----------------------------------------
         \   ^__^
          \  (oo)\_______
             (__)\       )\/\
@@ -361,13 +531,121 @@ It is Fri Apr 20 14:51:31 UTC 2018
                 ||     ||
 ```
 
-Exit with Ctrl-C.
+Use Ctrl-C to stop following the logs.
+
+### Stopping and restarting containers
+
+You may stop a container running in the background with the `docker stop <container>` command:
+
+```bash
+$> docker stop clock
+clock
+```
+
+You can check that is has indeed stopped:
+
+```bash
+CONTAINER ID        IMAGE               COMMAND             CREATED             STATUS                        PORTS               NAMES
+06eb72c21805        fortune-clock:2.0   "clock.sh"          2 minutes ago       Exited (0) 1 second ago                           clock
+4b38e523336c        fortune-clock:1.0   "bash"              17 minutes ago      Exited (130) 13 minutes ago                       peaceful_turing
+f6b9fa680789        ubuntu              "bash"              40 minutes ago      Exited (130) 27 minutes ago                       goofy_shirley
+```
+
+You can restart it with the `docker start <container>` command. This will re-execute the command
+that was originally given to `docker run <container> <command>`, in this case `clock.sh`:
+
+```bash
+$> docker start clock
+clock
+```
+
+It's running again:
+
+```bash
+CONTAINER ID        IMAGE               COMMAND             CREATED             STATUS              PORTS               NAMES
+06eb72c21805        fortune-clock:2.0   "clock.sh"          3 minutes ago       Up 1 second                             clock
+```
+
+You can follow its logs again:
+
+```bash
+$> docker logs -f clock
+It is Mon Apr 23 09:14:50 UTC 2018
+ _________________________________
+< So you're back... about time... >
+ ---------------------------------
+        \   ^__^
+         \  (oo)\_______
+            (__)\       )\/\
+                ||----w |
+                ||     ||
+```
+
+Stop following the logs with Ctrl-C.
+
+You can **stop and remove** a container in one command by adding the `-f` or `--force` option to
+`docker rm`. Beware that it will *not ask for confirmation*:
+
+```bash
+$> docker rm -f clock
+clock
+```
+
+No containers should be running any more:
+
+```bash
+$> docker ps
+CONTAINER ID        IMAGE               COMMAND             CREATED             STATUS              PORTS               NAMES
+```
+
+### Running multiple containers
+
+Since containers have isolated processes, networks and file systems, you can of course run more than
+one at the same time:
+
+```bash
+$> docker run -d --name old-clock fortune-clock:1.0 clock.sh
+25c9016ce01f93c3e073b568e256ae7f70223f6abd47bb6f4b31606e16a9c11e
+$> docker run -d --name new-clock fortune-clock:2.0 clock.sh
+4e367ffdda9829482734038d3eb71136d38320b6171dda31a5b287a66ee4b023
+```
+
+You can see that both are indeed running:
+
+```bash
+$> docker ps
+CONTAINER ID        IMAGE               COMMAND             CREATED             STATUS              PORTS               NAMES
+4e367ffdda98        fortune-clock:2.0   "clock.sh"          20 seconds ago      Up 24 seconds                           new-clock
+25c9016ce01f        fortune-clock:1.0   "clock.sh"          23 seconds ago      Up 27 seconds                           old-clock
+```
+
+Each container is running based on the correct image, as you can see by their output:
+
+```bash
+$> docker logs old-clock
+It is Mon Apr 23 09:39:18 UTC 2018
+Too much is just enough.
+                -- Mark Twain, on whiskey
+...
+
+$> docker logs new-clock
+It is Mon Apr 23 09:40:36 UTC 2018
+ ____________________________________
+/ You have many friends and very few \
+\ living enemies.                    /
+ ------------------------------------
+        \   ^__^
+         \  (oo)\_______
+            (__)\       )\/\
+                ||----w |
+                ||     ||
+...
+```
 
 
 
 ## TODO
 
-* file system isolation
 * incremental file system
 * dockerfile
 * network
@@ -385,9 +663,13 @@ Exit with Ctrl-C.
 
 [bash]: https://en.wikipedia.org/wiki/Bash_(Unix_shell)
 [docker-ce]: https://www.docker.com/community-edition
+[docker-security]: https://docs.docker.com/engine/security/security/
+[docker-storage-drivers]: https://docs.docker.com/storage/storagedriver/
+[fortune]: https://en.wikipedia.org/wiki/Fortune_(Unix)
 [git-bash]: https://git-scm.com/downloads
 [hub]: https://hub.docker.com
 [hub-ubuntu]: https://hub.docker.com/_/ubuntu/
+[lxc]: https://linuxcontainers.org
 [what-is-a-container]: https://www.docker.com/what-container
 [what-is-docker]: https://www.docker.com/what-docker
 [wsl]: https://docs.microsoft.com/en-us/windows/wsl/install-win10
