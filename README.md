@@ -200,9 +200,10 @@ Docker containers are very similar to [LXC containers][lxc] which provide many
   See the difference between running `ls -la /` and `docker run --rm ubuntu ls -la /`, which will
   show you all files at the root of your file system, and all files at the root of the container's
   file system, respectively.
-* **Network isolation:** a container doesn’t get privileged access to the sockets or interfaces of
-  another container. Of course, can interact with each other through their respective network
-  interface, just like they can interact with external hosts. We will see examples of this later.
+* **Network isolation:** a container doesn't get privileged access to the sockets or interfaces of
+  another container. Of course, containers can interact with each other through their respective
+  network interface, just like they can interact with external hosts. We will see examples of this
+  later.
 
 ### Run multiple commands in a container
 
@@ -1123,6 +1124,115 @@ script has changed.
 Consequently, all further instructions after that `COPY` cannot use the cache, since the state upon
 which they are based has changed. Therefore, the last `RUN` instruction also does not use the cache.
 
+### A Dockerfile for a Node.js application
+
+The `todo` directory contains a sample Node.js application to manage to-do notes.
+
+If you wanted to run this application on your machine, you would need to:
+
+* Install and run a [MongoDB][mongo] database (version 3).
+* Install [Node.js][node] (version 8).
+* Run `npm install` in the application's directory to install its dependencies.
+* Run `npm start` in the application's directory to start it.
+
+That takes some work if you don't already have the database or Node.js, or if you're not used to
+installing and managing them.  Let's start with the application itself. With what we've learned so
+far, you could write a Dockerfile that installs Node.js, installs the application's dependencies and
+starts it.
+
+However, don't forget that images can be shared on the [Docker hub][hub]. Popular frameworks and
+languages already have official (or non-official) images you can use. For example, the [`node`
+image][hub-node] already has Node.js installed: you only need to base your own image off of it and
+add your application's code.
+
+You will find a minimal Dockerfile to do that in the `Dockerfile.min` file in the `todo` directory
+of this repository. This is what it contains:
+
+```
+FROM node:8
+
+WORKDIR /usr/src/app
+COPY . /usr/src/app/
+RUN npm install
+
+CMD [ "npm", "start" ]
+```
+
+Here's what the instructions are for:
+
+* `FROM node:8` instructs Docker to build from the official `node:8` image (which contains the
+  latest Node.js 8 version).
+* `WORKDIR /usr/src/app` indicates the working directory in which commands are run (e.g. when using
+  a `RUN` instruction).
+* `COPY . /usr/src/app` copies the entire contents of the build context to the `/usr/src/app`
+  directory in the container.
+* `RUN npm install` executes an `npm install` command to install the application's dependencies. Due
+  to the previous `WORKDIR` instruction, this is executed in the `/usr/src/app` directory of the
+  container.
+* `CMD [ "npm", "start" ]` indicates the default command that will be executed when running this
+  container. This is equivalent to the arguments we passed to `docker run <image> <command...>`. If
+  a default command is specified in the image with `CMD`, you can simply use `docker run <image>` to
+  run that command.
+
+Move to the `todo` directory and build a new image based on that Dockerfile:
+
+```bash
+$> cd todo
+$> docker build -t todo .
+Sending build context to Docker daemon  60.93kB
+Step 1/5 : FROM node:8
+ ---> 4635bc7d130c
+Step 2/5 : WORKDIR /usr/src/app
+ ---> Using cache
+ ---> 9e5af697d233
+Step 3/5 : COPY . /usr/src/app/
+ ---> 0c7a80e4fedc
+Step 4/5 : RUN npm install
+ ---> Running in 0122811036db
+added 142 packages in 2.822s
+Removing intermediate container 0122811036db
+ ---> 13546c3ce198
+Step 5/5 : CMD [ "npm", "start" ]
+ ---> Running in 8becf1bd710d
+Removing intermediate container 8becf1bd710d
+ ---> a8dc25bf2972
+Successfully built a8dc25bf2972
+Successfully tagged todo:latest
+```
+
+You can now attempt to run the application:
+
+```bash
+$> docker run --rm todo
+
+> todo@0.0.0 start /usr/src/app
+> node ./bin/www
+
+{ MongoNetworkError: failed to connect to server [localhost:27017] on first connect [MongoNetworkError: connect ECONNREFUSED 127.0.0.1:27017]
+    ... }
+npm ERR! code ELIFECYCLE
+npm ERR! errno 1
+npm ERR! todo@0.0.0 start: `node ./bin/www`
+npm ERR! Exit status 1
+npm ERR!
+npm ERR! Failed at the todo@0.0.0 start script.
+npm ERR! This is probably not a problem with npm. There is likely additional logging output above.
+
+npm ERR! A complete log of this run can be found in:
+npm ERR!     /root/.npm/_logs/2018-04-23T15_27_29_784Z-debug.log
+```
+
+It doesn't work because it attempts to connect to a MongoDB database on `localhost:27017` and there
+is no such thing. Even if you do actually have a MongoDB database running on that port for
+development, remember that each container has its own isolated network stack, so it can't reach
+services listening on your machine's ports by default.
+
+
+
+
+
+## Best Practices
+
 ### Squashing layers
 
 It is considered good practice to minimize the number of layers in a Docker image:
@@ -1276,108 +1386,73 @@ same content.
 
 Note that the `--squash` option is an experimental feature, and should not be considered stable.
 
-### A Dockerfile for a Node.js application
+### Dockerfile tips
 
-The `todo` directory contains a sample Node.js application to manage to-do notes.
-
-If you wanted to run this application on your machine, you would need to:
-
-* Install and run a [MongoDB][mongo] database (version 3).
-* Install [Node.js][node] (version 8).
-* Run `npm install` in the application's directory to install its dependencies.
-* Run `npm start` in the application's directory to start it.
-
-That takes some work if you don't already have the database or Node.js, or if you're not used to
-installing and managing them.  Let's start with the application itself. With what we've learned so
-far, you could write a Dockerfile that installs Node.js, installs the application's dependencies and
-starts it.
-
-However, don't forget that images can be shared on the [Docker hub][hub]. Popular frameworks and
-languages already have official (or non-official) images you can use. For example, the [`node`
-image][hub-node] already has Node.js installed: you only need to base your own image off of it and
-add your application's code.
-
-You will find a minimal Dockerfile to do that in the `Dockerfile.min` file in the `todo` directory
-of this repository. This is what it contains:
+In the `todo` directory, you will find a `Dockerfile.full` file which is a more complete Dockerfile
+than the one used as a first example. Its contents are:
 
 ```
-FROM node:8
+FROM node:8-alpine
+
+LABEL maintainer="mei-admin@heig-vd.ch"
+
+ENV NODE_ENV=production \
+    PORT=3000
+
+RUN addgroup -S todo && \
+    adduser -S -G todo todo && \
+    mkdir -p /usr/src/app && \
+    chown todo:todo /usr/src/app
+
+USER todo:todo
+
+COPY --chown=todo:todo package.json package-lock.json /usr/src/app/
 
 WORKDIR /usr/src/app
-COPY . /usr/src/app/
 RUN npm install
+
+COPY --chown=todo:todo . /usr/src/app/
+
+EXPOSE 3000
 
 CMD [ "npm", "start" ]
 ```
 
-Here's what the instructions are for:
+Let's see what all of this means.
 
-* `FROM node:8` instructs Docker to build from the official `node:8` image (which contains the
-  latest Node.js 8 version).
-* `WORKDIR /usr/src/app` indicates the working directory in which commands are run (e.g. when using
-  a `RUN` instruction).
-* `COPY . /usr/src/app` copies the entire contents of the build context to the `/usr/src/app`
-  directory in the container.
-* `RUN npm install` executes an `npm install` command to install the application's dependencies. Due
-  to the previous `WORKDIR` instruction, this is executed in the `/usr/src/app` directory of the
-  container.
-* `CMD [ "npm", "start" ]` indicates the default command that will be executed when running this
-  container. This is equivalent to the arguments we passed to `docker run <image> <command...>`. If
-  a default command is specified in the image with `CMD`, you can simply use `docker run <image>` to
-  run that command.
+#### Using smaller base images
 
-Move to the `todo` directory and build a new image based on that Dockerfile:
+Many popular Docker images these days have an Alpine variant. This means that the image is based on
+the [official `alpine` image][hub-alpine] on Docker hub, based on the [Alpine Linux][alpine]
+distribution. Alpine Linux is much smaller than most distribution base images (~5MB), and thus leads
+to much slimmer images in general.
 
-```bash
-$> cd todo
-$> docker build -t todo .
-Sending build context to Docker daemon  60.93kB
-Step 1/5 : FROM node:8
- ---> 4635bc7d130c
-Step 2/5 : WORKDIR /usr/src/app
- ---> Using cache
- ---> 9e5af697d233
-Step 3/5 : COPY . /usr/src/app/
- ---> 0c7a80e4fedc
-Step 4/5 : RUN npm install
- ---> Running in 0122811036db
-added 142 packages in 2.822s
-Removing intermediate container 0122811036db
- ---> 13546c3ce198
-Step 5/5 : CMD [ "npm", "start" ]
- ---> Running in 8becf1bd710d
-Removing intermediate container 8becf1bd710d
- ---> a8dc25bf2972
-Successfully built a8dc25bf2972
-Successfully tagged todo:latest
+```
+FROM node:8-alpine
 ```
 
-You can now attempt to run the application:
+Here we use the `node:8-alpine` tag instead of simply `node:8`.
 
-```bash
-$> docker run --rm todo
+These variants are highly recommended when final image size being as small as possible is desired.
+The main caveat to note is that it does use [musl libc][musl-libc] instead of [glibc and
+friends][glibc-etc], so certain software might run into issues depending on the depth of their libc
+requirements. However, most software doesn't have an issue with this, so this variant is usually a
+very safe choice. See this [Hacker News comment thread][alpine-size] for more discussion of the
+issues that might arise and some pro/con comparisons of using Alpine-based images.
 
-> todo@0.0.0 start /usr/src/app
-> node ./bin/www
+To minimize image size, it's uncommon for additional related tools (such as Git or Bash) to be
+included in Alpine-based images. Using this image as a base, add the things you need in your own
+Dockerfile (see the [alpine image description][hub-alpine] for examples of how to install packages
+if you are unfamiliar).
 
-{ MongoNetworkError: failed to connect to server [localhost:27017] on first connect [MongoNetworkError: connect ECONNREFUSED 127.0.0.1:27017]
-    ... }
-npm ERR! code ELIFECYCLE
-npm ERR! errno 1
-npm ERR! todo@0.0.0 start: `node ./bin/www`
-npm ERR! Exit status 1
-npm ERR!
-npm ERR! Failed at the todo@0.0.0 start script.
-npm ERR! This is probably not a problem with npm. There is likely additional logging output above.
+#### Labeling images
 
-npm ERR! A complete log of this run can be found in:
-npm ERR!     /root/.npm/_logs/2018-04-23T15_27_29_784Z-debug.log
+It is good practice to label your images with the `LABEL` instruction. A popular convention is to
+add a `maintainer` label to provide a maintenance contact e-mail:
+
 ```
-
-It doesn't work because it attempts to connect to a MongoDB database on `localhost:27017` and there
-is no such thing. Even if you do actually have a MongoDB database running on that port for
-development, remember that each container has its own isolated network stack, so it can't reach
-services listening on your machine's ports by default.
+LABEL maintainer="mei-admin@heig-vd.ch"
+```
 
 
 
@@ -1385,12 +1460,14 @@ services listening on your machine's ports by default.
 
 ## TODO
 
+* unix process exit code, short-running vs long-running
 * dockerignore
 * share host file system (volume)
 * network
 * docker compose
 * docker swarm
-* bonus: multi-stage builds
+* best practice: dockerfile (multiline, user, init process)
+* best practice: multi-stage builds
 
 
 
@@ -1406,6 +1483,8 @@ services listening on your machine's ports by default.
 
 
 
+[alpine]: https://alpinelinux.org
+[alpine-size]: https://news.ycombinator.com/item?id=10782897
 [bash]: https://en.wikipedia.org/wiki/Bash_(Unix_shell)
 [docker-ce]: https://www.docker.com/community-edition
 [docker-security]: https://docs.docker.com/engine/security/security/
@@ -1413,12 +1492,16 @@ services listening on your machine's ports by default.
 [dockerfile]: https://docs.docker.com/engine/reference/builder/
 [fortune]: https://en.wikipedia.org/wiki/Fortune_(Unix)
 [git-bash]: https://git-scm.com/downloads
+[glibc-etc]: http://www.etalabs.net/compare_libcs.html
 [hub]: https://hub.docker.com
+[hub-alpine]: https://hub.docker.com/_/alpine/
 [hub-mongo]: https://hub.docker.com/_/mongo/
 [hub-node]: https://hub.docker.com/_/node/
 [hub-ubuntu]: https://hub.docker.com/_/ubuntu/
 [lxc]: https://linuxcontainers.org
 [mongo]: https://www.mongodb.com
+[musl-libc]: http://www.musl-libc.org
+[node]: https://nodejs.org/en/
 [union-fs]: https://en.wikipedia.org/wiki/UnionFS
 [what-is-a-container]: https://www.docker.com/what-container
 [what-is-docker]: https://www.docker.com/what-docker
