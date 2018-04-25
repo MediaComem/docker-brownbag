@@ -28,6 +28,10 @@ running a hello world container to running a multi-machine swarm.
   - [Build an image from a Dockerfile](#build-an-image-from-a-dockerfile)
   - [Build cache](#build-cache)
   - [A Dockerfile for a Node.js application](#a-dockerfile-for-a-nodejs-application)
+- [Connecting containers](#connecting-containers)
+  - [Exposing container ports on the host machine](#exposing-container-ports-on-the-host-machine)
+  - [Docker networks](#docker-networks)
+    - [Running a container in a network](#running-a-container-in-a-network)
 - [Best Practices](#best-practices)
   - [Squashing image layers](#squashing-image-layers)
     - [Using the `--squash` option](#using-the---squash-option)
@@ -1249,6 +1253,274 @@ Dockerfiles.
 
 
 
+## Connecting containers
+
+As we've seen, containers are **isolated by default**. Our Node.js application cannot run because it
+cannot reach a database. If your application's environment was a virtual machine, your next step may
+be to install and run a MongoDB server on that same virtual machine. You could add instructions to
+the Dockerfile to do the same in the container we've built so far, but that would not be "the Docker
+way".
+
+Docker best practices suggest that **each container should have only one concern**.  Decoupling
+applications into multiple containers makes it much easier to **scale horizontally** and **reuse
+containers**. For instance, a web application stack might consist of three separate containers, each
+with its own unique image, to manage the web application, database, and an in-memory cache in a
+decoupled manner.
+
+(You may have heard that there should be "one process per container". While this mantra has good
+intentions, it is not necessarily true that there should be only one operating system process per
+container. In addition to the fact that containers can now be spawned with an init process, some
+programs might spawn additional processes of their own accord. For instance, Celery can spawn
+multiple worker processes, or Apache might create a process per request. While "one process per
+container" is frequently a good rule of thumb, it is not a hard and fast rule. Use your best
+judgment to keep containers as clean and modular as possible.)
+
+If containers depend on each other, you can use Docker container networks to ensure that these
+containers can communicate.
+
+For our Node.js application, we will therefore run 2 containers:
+
+* 1 container to run a MongoDB server.
+* 1 container to run the Node.js application.
+
+This will make it easy to, for example, horizontally scale our application by running more than 1
+Node.js application container, while keeping only 1 MongoDB server container.
+
+### Exposing container ports on the host machine
+
+We will use the [official `mongo` image][hub-mongo] on Docker hub to run a MongoDB database
+container for our application. [Its Dockerfile][hub-mongo-dockerfile] is more complex than the one
+we've used as an example, but you should now easily understand what it does on principle (i.e.
+install what is needed to run a MongoDB server and run the appropriate command to start it).
+
+Run a MongoDB 3+ container named `db` with the following command:
+
+```bash
+$> docker run --name db --rm mongo:3
+Unable to find image 'mongo:3' locally
+3: Pulling from library/mongo
+...
+Digest: sha256:670f9ea4f85f7e188cb0f572261feb1f2e170ee593ff3981474395e145a0c062
+Status: Downloaded newer image for mongo:3
+2018-04-25T08:41:21.614+0000 I CONTROL  [initandlisten] MongoDB starting : pid=1 port=27017 dbpath=/data/db 64-bit host=608a8a274da2
+...
+2018-04-25T08:41:22.096+0000 I NETWORK  [initandlisten] waiting for connections on port 27017
+```
+
+If you open another command line console, you can inspect that container and find its IP address:
+
+```bash
+$> docker inspect db
+...
+    "Networks": {
+        "bridge": {
+            "IPAMConfig": null,
+            "Links": null,
+            "Aliases": null,
+            "NetworkID": "4156a5216eed6ee7715a18fed1586620fc6ec87fb7ddc6c7f15032f640816850",
+            "EndpointID": "ffd645200b204475441262772f4b4cbb2d7a2209aaa39df19e7a966931e915e2",
+            "Gateway": "172.17.0.1",
+            "IPAddress": "172.17.0.2",
+            "IPPrefixLen": 16,
+            "IPv6Gateway": "",
+            "GlobalIPv6Address": "",
+            "GlobalIPv6PrefixLen": 0,
+            "MacAddress": "02:42:ac:11:00:02",
+            "DriverOpts": null
+        }
+    }
+...
+```
+
+On a Linux host machine, you could connect to that IP address directly on port 27017 to reach the
+database. (It might not work on macOS & Windows machines because some Docker installations use an
+intermediate Linux virtual machine to run the containers, so your machine might not actually be the
+host Docker machine.)
+
+However, that IP address is not predictable so that's not a good solution. You can expose a
+container's port on your host machine by adding the `-p` or `--publish <hostPort:containerPort>`
+option to the `docker run` command.
+
+Stop the MongoDB container with Ctrl-C and start another one with this command:
+
+```bash
+$> docker run --name db -p 5000:27017 --rm mongo:3
+...
+2018-04-25T08:41:22.096+0000 I NETWORK  [initandlisten] waiting for connections on port 27017
+```
+
+The above command publishes the container's 27017 port to your host machine's 5000 port. If you have
+a MongoDB client on your host machine, you can now connect to the database with the following
+command:
+
+```bash
+$> mongo localhost:5000
+MongoDB shell version v3.6.3
+connecting to: mongodb://localhost:5000/test
+MongoDB server version: 3.6.4
+...
+>
+```
+
+Exit the MongoDB shell with `exit`. Stop the MongoDB container with Ctrl-C.
+
+This works, but we can't use this method to connect our Node.js application container to our MongoDB
+server container. You can reach any container through the host machine, but the containers
+themselves cannot reach your host machine's ports.
+
+### Docker networks
+
+You can create **networks** to break the isolation between containers and connect them together.
+List available networks with the `docker network ls` command:
+
+```bash
+$> docker network ls
+NETWORK ID          NAME                DRIVER              SCOPE
+4156a5216eed        bridge              bridge              local
+c7777321c9e3        host                host                local
+cd79f5b6d678        none                null                local
+```
+
+Read the [Docker Networking Overview][docker-networking] to learn about the different network
+drivers such as `bridge`, `host` and `none`. The links in that article will also give more
+information on how Docker networks work at the OS level.
+
+For now, know that a [bridge network][docker-bridge-networks] uses a software bridge which allows
+containers connected to the same bridge network to communicate, while providing isolation from
+containers which are not connected to that bridge network. The Docker bridge driver automatically
+installs rules in the host machine so that containers on different bridge networks cannot
+communicate directly with each other.
+
+A bridge network named `bridge` exists by default. New containers connect to it unless otherwise
+specified. However, we will not use this default network, as user-defined bridge networks are
+superior to the default bridge network. We will see why shortly.
+
+Let's create a network for our application with the `docker network create <name>` command:
+
+```bash
+$> docker network create todo
+15109ea2a697b8be45b02511fdc217f3707c3489cbcfdf4cebf49e968d2bc1e3
+```
+
+We can see it in the list now:
+
+```bash
+$> docker network ls
+NETWORK ID          NAME                DRIVER              SCOPE
+4156a5216eed        bridge              bridge              local
+c7777321c9e3        host                host                local
+cd79f5b6d678        none                null                local
+15109ea2a697        todo                bridge              local
+```
+
+#### Running a container in a network
+
+To run the MongoDB server container in our user-defined `todo` network, add the `--network` option
+to the `docker run` command. This time, we'll also run the container in the background with the `-d`
+option:
+
+```bash
+$> docker run -d --name db --network todo mongo:3
+6f6066b97321a4f333f7dc8cb4364b719bba795e6deea79e9fd796946de623cd
+```
+
+Make sure the container is running:
+
+```bash
+$> docker ps
+CONTAINER ID        IMAGE               COMMAND                  CREATED                  STATUS              PORTS               NAMES
+6f6066b97321        mongo:3             "docker-entrypoint.s…"   Less than a second ago   Up 4 seconds        27017/tcp           db
+```
+
+If you inspect it, you will see that it is indeed connected to the `todo` network instead of the
+`bridge` network:
+
+```bash
+$> docker inspect db
+...
+    "Networks": {
+        "todo": {
+            "IPAMConfig": null,
+            "Links": null,
+            "Aliases": [
+                "6f6066b97321"
+            ],
+            "NetworkID": "15109ea2a697b8be45b02511fdc217f3707c3489cbcfdf4cebf49e968d2bc1e3",
+            "EndpointID": "c4428534c06e83751a3fe10d530481888b3101645b666f75aafad21634cedc10",
+            "Gateway": "172.18.0.1",
+            "IPAddress": "172.18.0.2",
+            "IPPrefixLen": 16,
+            "IPv6Gateway": "",
+            "GlobalIPv6Address": "",
+            "GlobalIPv6PrefixLen": 0,
+            "MacAddress": "02:42:ac:12:00:02",
+            "DriverOpts": null
+        }
+    }
+...
+```
+
+Now that our MongoDB server container is running, we can attempt to connect our Node.js application
+to it. Attempt to run a container based on our `todo` image as before, but this time add the
+`--network` option like you did for the other container:
+
+```bash
+$> docker run --name app --network todo --rm todo
+
+> todo@0.0.0 start /usr/src/app
+> node ./bin/www
+
+{ MongoNetworkError: failed to connect to server [localhost:27017] on first connect [MongoNetworkError: connect ECONNREFUSED 127.0.0.1:27017]
+    ... }
+npm ERR! code ELIFECYCLE
+npm ERR! errno 1
+npm ERR! todo@0.0.0 start: `node ./bin/www`
+npm ERR! Exit status 1
+...
+```
+
+It still does not work because the Node.js application still attempts to connect to its default
+database address of `localhost:27017`. Fortunately, a custom database URL can be provided to the
+application by setting the `$DATABASE_URL` environment variable. But what address to use?
+
+This is where Docker's networking magic comes into play. We mentioned earlier that user-defined
+bridge networks are superior to Docker's default bridge network. User-defined bridges provide
+**automatic DNS resolution between containers**, i.e. containers can resolve each other by name or
+alias.
+
+Since we added the `--name db` option when running our MongoDB container, any container on the same
+network can reach it at the `db` address (which is simply a host like `localhost` or `example.com`).
+
+Simply add the `-e` or `--env <VARIABLE=VALUE>` option to the `docker run` command to define a new
+environment variable. We'll also add the `-d` option to run it in the background, and a `-p` option
+to publish its 3000 port on our host machine:
+
+```bash
+$> docker run -d -e "DATABASE_URL=mongodb://db:27017" --name app --network todo -p 3000:3000 todo
+8e7b4d08691fa46c93afa80c6ec76a9be7bb768b699e0bdd2353df682568fe18
+```
+
+Both our containers are now running:
+
+```bash
+$> docker ps
+CONTAINER ID        IMAGE               COMMAND                  CREATED             STATUS              PORTS                    NAMES
+8e7b4d08691f        todo                "npm start"              3 minutes ago       Up 3 minutes        0.0.0.0:3000->3000/tcp   app
+6f6066b97321        mongo:3             "docker-entrypoint.s…"   16 minutes ago      Up 16 minutes       27017/tcp                db
+```
+
+The application should be working and accessible at
+[`http://localhost:3000`](http://localhost:3000)!
+
+![To-do application](images/todo.png)
+
+Play with it and use `docker logs app` to see that the Node.js application is indeed processing your
+requests.
+
+
+
+
+
 ## Best Practices
 
 ### Squashing image layers
@@ -1710,8 +1982,9 @@ initial connection and connection loss problems.
 * network
 * docker compose
 * docker swarm
-* best practice: dockerfile (multiline, user, init process)
+* best practice: dockerfile (init process)
 * best practice: multi-stage builds
+* best practice: multi-process container (s6)
 
 
 
@@ -1721,19 +1994,25 @@ initial connection and connection loss problems.
 
 * [What is Docker?][what-is-docker]
 * [What is a Container?][what-is-a-container]
+* [Docker Networking Overview][docker-networking]
+  * [Docker Bridge Networks][docker-bridge-networks]
 * [Docker Security][docker-security]
 * [Docker Storage Drivers][docker-storage-drivers]
 * [Dockerfile Reference][dockerfile]
+  * [Best Practices for Writing Dockerfiles][dockerfile-best-practices]
 
 
 
 [alpine]: https://alpinelinux.org
 [alpine-size]: https://news.ycombinator.com/item?id=10782897
 [bash]: https://en.wikipedia.org/wiki/Bash_(Unix_shell)
+[docker-bridge-networks]: https://docs.docker.com/network/bridge/
 [docker-ce]: https://www.docker.com/community-edition
 [docker-security]: https://docs.docker.com/engine/security/security/
 [docker-storage-drivers]: https://docs.docker.com/storage/storagedriver/
 [dockerfile]: https://docs.docker.com/engine/reference/builder/
+[dockerfile-best-practices]: https://docs.docker.com/develop/develop-images/dockerfile_best-practices/
+[docker-networking]: https://docs.docker.com/network/
 [dockerfile-tips]: #dockerfile-tips
 [express]: http://expressjs.com
 [fortune]: https://en.wikipedia.org/wiki/Fortune_(Unix)
@@ -1742,6 +2021,7 @@ initial connection and connection loss problems.
 [hub]: https://hub.docker.com
 [hub-alpine]: https://hub.docker.com/_/alpine/
 [hub-mongo]: https://hub.docker.com/_/mongo/
+[hub-mongo-dockerfile]: https://github.com/docker-library/mongo/blob/dd8ceb3b3552d11c901a603d0b8b303e2fe4bc2e/3.6/Dockerfile
 [hub-node]: https://hub.docker.com/_/node/
 [hub-ubuntu]: https://hub.docker.com/_/ubuntu/
 [lxc]: https://linuxcontainers.org
