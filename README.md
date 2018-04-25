@@ -9,6 +9,7 @@ running a hello world container to running a multi-machine swarm.
 
 - [Requirements](#requirements)
 - [What is Docker?](#what-is-docker)
+  - [What is a container?](#what-is-a-container)
 - [Containers & images](#containers--images)
   - [Make sure Docker is working](#make-sure-docker-is-working)
   - [Run a container from an image](#run-a-container-from-an-image)
@@ -84,7 +85,45 @@ architectures**.  Docker enables true **independence between applications and in
 developers and IT ops to unlock their potential and creates a model for better collaboration and
 innovation.
 
-* [What is a Container?][what-is-a-container]
+### What is a container?
+
+A container image is a **lightweight, stand-alone, executable package of a piece of software** that
+includes everything needed to run it: code, runtime, system tools, system libraries, settings.
+Available for both Linux and Windows based apps, containerized software will always run the same,
+regardless of the environment. **Containers isolate software from its surroundings**, for example
+differences between development and staging environments and help reduce conflicts between teams
+running different software on the same infrastructure.
+
+![Docker containers](images/containers.png)
+
+* **Lightweight** - Docker containers running on a single machine share that machine's operating
+  system kernel; they start instantly and use less CPU and RAM. Images are constructed from file
+  system layers and share common files. This minimizes disk usage and image downloads are much
+  faster.
+* **Standard** - Docker containers are based on open standards and run on all major Linux
+  distributions, Microsoft Windows, and on any infrastructure including VMs, bare-metal and in the
+  cloud.
+* **Secure** - Docker containers isolate applications from one another and from the underlying
+  infrastructure. Docker provides the strongest default isolation to limit app issues to a single
+  container instead of the entire machine.
+
+Containers and virtual machines have similar resource isolation and allocation benefits, but
+function differently because containers virtualize the operating system instead of hardware.
+Containers are more portable and efficient.
+
+![Docker virtual machine versus container](images/vm-vs-container.png)
+
+Virtual machines (VMs) are an abstraction of physical hardware turning one server into many servers.
+The hypervisor allows multiple VMs to run on a single machine. Each VM includes a full copy of an
+operating system, one or more apps, necessary binaries and libraries - taking up tens of GBs. VMs
+can also be slow to boot.
+
+![Docker container versus virtual machine](images/container-vs-vm.png)
+
+Containers are an abstraction at the app layer that packages code and dependencies together.
+Multiple containers can run on the same machine and share the OS kernel with other containers, each
+running as isolated processes in user space. Containers take up less space than VMs (container
+images are typically tens of MBs in size), and start almost instantly.
 
 
 
@@ -789,9 +828,14 @@ written to this thin writable container layer.  When the container is deleted, t
 also deleted, unless it was committed to an image.
 
 The layers belonging to the image used as a base for your container are never modified–they are
-**read-only**. Docker uses a [union file system][union-fs] to make it work: when you write file in
-the top writable layer, the previous version(s) of the file in previous layers still exist, but are
-"hidden" by the file system; only the most recent version is seen.
+**read-only**. Docker uses a [union file system][union-fs] and a [copy-on-write strategy][cow] to
+make it work:
+
+* When you read a file, the union file system will look in all layers, from newest to oldest, and
+  return the first version it finds.
+* When you write to a file, the union file system will look for an older version, copy it to the top
+  writable layer, and modify that copied version. Previous version(s) of the file in older layers
+  still exist, but are "hidden" by the file system; only the most recent version is seen.
 
 ![Docker: Sharing Layers](images/sharing-layers.jpg)
 
@@ -2284,27 +2328,26 @@ It is considered good practice to minimize the number of layers in a Docker imag
 * There will be fewer layers to download (when pulling an image from the Docker hub).
 * The build will be faster as larger chunks of the build process will be cached.
 
-There are two things we can do to simply our current Dockerfile.
-The first is to make the `clock.sh` script executable so that we don't need the last `RUN`
-instruction of the Dockerfile any more. The `COPY` instruction conserves file permissions:
+There are two things we can do to simply our current Dockerfile.  The first is to make the
+`clock.sh` script executable so that we don't need the last `RUN` instruction of the Dockerfile any
+more. The `COPY` instruction conserves file permissions:
 
 ```bash
 $> chmod +x clock.sh
 ```
 
 The second is to use only 1 `RUN` instruction instead of 3.
-Write a `RUN` instruction like this will only create 1 layer:
+Writing a `RUN` instruction like this will only create 1 layer:
 
 ```
-RUN apt-get update && apt-get install -y fortune && apt-get install -y cowsay
+RUN apt-get update && apt-get install -y cowsay fortune
 ```
 
 You may use slashes to split the command into multiple lines for readability:
 
 ```
 RUN apt-get update && \
-    apt-get install -y fortune && \
-    apt-get install -y cowsay
+    apt-get install -y cowsay fortune
 ```
 
 Your final Dockerfile should look like this:
@@ -2313,8 +2356,7 @@ Your final Dockerfile should look like this:
 FROM ubuntu
 
 RUN apt-get update && \
-    apt-get install -y fortune && \
-    apt-get install -y cowsay
+    apt-get install -y cowsay fortune
 
 COPY clock.sh /usr/local/bin/clock.sh
 ```
@@ -2626,6 +2668,10 @@ exposed ports and map them to high-order ports.
 
 #### Using an entrypoint script
 
+(It's recommended that you finish reading the [Docker Compose](#docker-compose) section to better
+understand this tip, especially the [Waiting for other containers](#waiting-for-other-containers)
+subsection.)
+
 We've seen that the `CMD` instruction defines the default command to run in the container, but
 Docker actually uses 2 instructions to determine the full command to run: `ENTRYPOINT` and `CMD`.
 
@@ -2726,9 +2772,6 @@ connection and connection loss problems.
 
 ## TODO
 
-* integrate "what is a container" into readme
-* environment variables
-* copy-on-write
 * dockerfile inheritance (all instructions, entrypoint, cmd)
 * show file system isolation by `cat`-ing clock script
 * ephemeral container
@@ -2770,6 +2813,7 @@ connection and connection loss problems.
 [alpine]: https://alpinelinux.org
 [alpine-size]: https://news.ycombinator.com/item?id=10782897
 [bash]: https://en.wikipedia.org/wiki/Bash_(Unix_shell)
+[cow]: https://en.wikipedia.org/wiki/Copy-on-write
 [docker-bridge-networks]: https://docs.docker.com/network/bridge/
 [docker-ce]: https://www.docker.com/community-edition
 [docker-compose]: https://docs.docker.com/compose/overview/
