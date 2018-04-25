@@ -1,7 +1,8 @@
 # Docker Brown Bag: From Hello World to Swarm
 
 This document is a step-by-step guide that you can follow to learn the basics of Docker, from
-running a hello world container to running a multi-machine swarm.
+running a hello world container to running a multi-machine swarm. It's a condensed version of some
+of Docker's own documentation and other articles (see the [references](#references) at the bottom).
 
 Note: many names and IDs shown in sample command outputs in this guide are randomly generated or
 context-dependent, and will differ on your machine.
@@ -2945,6 +2946,7 @@ TODO
   * [Docker Compose File Reference][docker-compose-file]
   * [Overview of Docker Compose CLI][docker-compose-cli]
 * [Starting containers automatically][docker-restart-policy]
+* [The Twelve-Factor App][12factor]
 
 
 
