@@ -40,6 +40,7 @@ running a hello world container to running a multi-machine swarm.
   - [Running Docker Compose services](#running-docker-compose-services)
   - [Rebuilding Docker Compose services](#rebuilding-docker-compose-services)
   - [Starting containers automatically](#starting-containers-automatically)
+  - [Horizontal scaling](#horizontal-scaling)
 - [Best Practices](#best-practices)
   - [Squashing image layers](#squashing-image-layers)
     - [Using the `--squash` option](#using-the---squash-option)
@@ -191,6 +192,7 @@ You can remove a stopped container or containers with `docker rm`, using either 
 $> docker rm relaxed_galileo 02bbe5e66c15
 relaxed_galileo
 02bbe5e66c15
+
 $> docker ps -a
 CONTAINER ID        IMAGE               COMMAND             CREATED             STATUS              PORTS               NAMES
 ```
@@ -656,6 +658,7 @@ one at the same time:
 ```bash
 $> docker run -d --name old-clock fortune-clock:1.0 clock.sh
 25c9016ce01f93c3e073b568e256ae7f70223f6abd47bb6f4b31606e16a9c11e
+
 $> docker run -d --name new-clock fortune-clock:2.0 clock.sh
 4e367ffdda9829482734038d3eb71136d38320b6171dda31a5b287a66ee4b023
 ```
@@ -933,6 +936,7 @@ clock script we used in the `fortune-clock:2.0` image, and a Dockerfile:
 
 ```bash
 $> cd fortune-clock
+
 $> ls
 Dockerfile clock.sh
 ```
@@ -1205,6 +1209,7 @@ Move to the `todo` directory and build a new image based on that Dockerfile:
 
 ```bash
 $> cd todo
+
 $> docker build -t todo .
 Sending build context to Docker daemon  60.93kB
 Step 1/5 : FROM node:8
@@ -1541,8 +1546,10 @@ Stop both containers and restart them:
 $> docker stop app db
 app
 db
+
 $> docker start db
 db
+
 $> docker start app
 app
 ```
@@ -1562,6 +1569,7 @@ Now let's see what happens if you stop *and remove* both containers:
 $> docker stop app db
 app
 db
+
 $> docker rm app db
 app
 db
@@ -1572,6 +1580,7 @@ Now re-run both containers with the same commands as before:
 ```bash
 $> docker run -d --name db --network todo mongo:3
 f8afad7282fad05fb16230ef4c56a96bef969b7f3dad9c312b4a6b8c4024cd43
+
 $> docker run -d -e "DATABASE_URL=mongodb://db:27017" --name app --network todo -p 3000:3000 todo
 b4dfaf7d0d9f4669b13dac759c4b7858b0c23537a31183c7c757b8c9d48825b8
 ```
@@ -1619,6 +1628,7 @@ all our data:
 $> docker stop app db
 app
 db
+
 $> docker rm db
 ```
 
@@ -1681,6 +1691,7 @@ Stop both containers and remove the `db` container again. As before, the top wri
 $> docker stop app db
 app
 db
+
 $> docker rm db
 db
 ```
@@ -1691,6 +1702,7 @@ container as well:
 ```bash
 $> docker run -d --name db --network todo -v ~/docker-brownbag-db:/data/db mongo:3
 12b985e23b4bea3b25595e0a2c52cf85693cdc1e2851a7197e93929da3aeecf7
+
 $> docker start app
 app
 ```
@@ -1727,8 +1739,10 @@ your machine:
 $> docker stop app db
 app
 db
+
 $> docker rm db
 db
+
 $> rm -fr ~/docker-brownbag-db
 ```
 
@@ -1765,8 +1779,10 @@ re-run the `db` container with the same command:
 $> docker stop app db
 app
 db
+
 $> docker rm db
 db
+
 $> docker run -d --name db --network todo -v todo_data:/data/db mongo:3
 3ac1a6846a805d7821f8b80c230fe318fcb626b956b5b447e756cf1da1e221ae
 ```
@@ -1832,16 +1848,21 @@ Compose has commands for managing the whole lifecycle of your application:
 ### The `docker-compose.yml` file
 
 If the containers from the previous steps are still running, remove them and also remove the Docker
-network and data volume we created so that we start from scratch:
+image, network and data volume we created for the to-do application, so that we start from scratch:
 
 ```bash
 $> docker rm -f app db
 app
 db
+
 $> docker network rm todo
 todo
+
 $> docker volume rm todo_data
 todo_data
+
+$> docker rmi todo
+...
 ```
 
 It's a pain to remember the full commands we used before with all the correct options to build and
@@ -1857,13 +1878,13 @@ services:
 
   app:
     image: docker-brownbag/todo
-    build: .
+    build:
+      context: .
+      dockerfile: Dockerfile.full
     depends_on:
       - db
     environment:
       DATABASE_URL: "mongodb://db:27017"
-      NODE_ENV: production
-      PORT: 3000
     ports:
       - "3000:3000"
 
@@ -1882,7 +1903,9 @@ Let's go into more details, looking at the `app` service first:
 
 ```
 app:
-  build: .
+  build:
+    context: .
+    dockerfile: Dockerfile.full
   image: todo
   depends_on:
     - db
@@ -1896,10 +1919,15 @@ app:
 It's basically another way to indicate all the options and arguments we've passed to Docker commands
 so far::
 
-* The `build: .` option indicates that the `app` service should be built with `docker build` with
-  the current directory as the build context (where we will run the `docker-compose` command).
-* The `image: docker-brownbag/todo` option indicates that the resulting image should be tagged
-  as `todo`, exactly like `-t todo` option of the `docker build` command.
+* The `context: .` option under `build:` indicates that the `app` service should be built with
+  `docker build` with the current directory as the build context (where we will run the
+  `docker-compose` command).
+* The `dockerfile: Dockerfile.full` option indicates that the Dockerfile that should be used is the
+  file named `Dockerfile.full` instead of the default `Dockerfile`. (For the purposes of our
+  example, `Dockerfile.full` implements all suggested tips under [Dockerfile
+  Tips][dockerfile-tips].)
+* The `image: docker-brownbag/todo` option indicates that the resulting image should be tagged as
+  `todo`, exactly like `-t todo` option of the `docker build` command.
 * The `depends_on: [ db ]` option indicates that the `app` service depends on the `db` service, and
   therefore the `db` service should be started first.
 * The `environment: ...` option is a map of environment variables to add to the service's
@@ -1949,22 +1977,7 @@ $> docker-compose up --build -d
 Creating network "todo_default" with the default driver
 Creating volume "todo_data" with default driver
 Building app
-Step 1/5 : FROM node:8
- ---> 4635bc7d130c
-Step 2/5 : WORKDIR /usr/src/app
- ---> Using cache
- ---> 9e5af697d233
-Step 3/5 : COPY . /usr/src/app/
- ---> 5e40574ad223
-Step 4/5 : RUN npm install
- ---> Running in ad28b5a06327
-added 142 packages in 2.576s
-Removing intermediate container ad28b5a06327
- ---> 5dd56879c8c9
-Step 5/5 : CMD [ "npm", "start" ]
- ---> Running in 06e2bd429d11
-Removing intermediate container 06e2bd429d11
- ---> ab624a535392
+...
 Successfully built ab624a535392
 Successfully tagged docker-brownbag/todo:latest
 Creating todo_db_1 ... done
@@ -2062,20 +2075,9 @@ nothing:
 ```bash
 $> docker-compose up --build -d
 Building app
-Step 1/5 : FROM node:8
- ---> 4635bc7d130c
-Step 2/5 : WORKDIR /usr/src/app
+...
  ---> Using cache
- ---> 9e5af697d233
-Step 3/5 : COPY . /usr/src/app/
- ---> Using cache
- ---> 97025cac0eca
-Step 4/5 : RUN npm install
- ---> Using cache
- ---> 35f577413fa9
-Step 5/5 : CMD [ "npm", "start" ]
- ---> Using cache
- ---> 8215f1cda8b6
+...
 Successfully built 8215f1cda8b6
 Successfully tagged docker-brownbag/todo:latest
 todo_db_1 is up-to-date
@@ -2091,22 +2093,12 @@ the `title` property of the application. Then rebuild it:
 ```bash
 $> docker-compose up --build -d
 Building app
-Step 1/5 : FROM node:8
- ---> 4635bc7d130c
-Step 2/5 : WORKDIR /usr/src/app
+...
  ---> Using cache
- ---> 9e5af697d233
-Step 3/5 : COPY . /usr/src/app/
- ---> ebc195a1857e
-Step 4/5 : RUN npm install
- ---> Running in 968a55027e1b
-added 141 packages in 2.615s
-Removing intermediate container 968a55027e1b
- ---> c4cb8cf691a5
-Step 5/5 : CMD [ "npm", "start" ]
- ---> Running in d9f7b8d1436b
-Removing intermediate container d9f7b8d1436b
- ---> e67c21b4e1ab
+ ---> 1ad095898f72
+Step 9/13 : COPY --chown=todo:todo . /usr/src/app/
+ ---> 4d6d681d4444
+...
 Successfully built e67c21b4e1ab
 Successfully tagged docker-brownbag/todo:latest
 todo_db_1 is up-to-date
@@ -2137,14 +2129,14 @@ additional restart policy:
 
 ```
 app:
-  build: .
+  build:
+    context: .
+    dockerfile: Dockerfile.full
   image: docker-brownbag/todo
   depends_on:
     - db
   environment:
     DATABASE_URL: "mongodb://db:27017"
-    NODE_ENV: production
-    PORT: 3000
   restart: always
   ports:
     - "3000:3000"
@@ -2166,6 +2158,118 @@ The available restart policies are:
 * `unless-stopped` - Restart the container unless it is explicitly stopped or Docker itself is
   stopped or restarted.
 * `always` - Always restart the container if it stops.
+
+### Horizontal scaling
+
+Let's say we expect many users to use our to-do app, and we're worried that our new infrastructure
+won't be able to handle the load. We're going to [scale horizontally][horizontal-scaling] by
+deploying multiple containers for our Node.js application.
+
+(We'll keep only 1 MongoDB server container for now, because setting up MongoDB replication is a bit
+more complicated.)
+
+If you've followed the previous examples, run the following command to bring down the
+entire infrastructure (except persistent data volumes):
+
+```bash
+$> docker-compose down
+Stopping todo_app_1 ... done
+Stopping todo_db_1  ... done
+Removing todo_app_1 ... done
+Removing todo_db_1  ... done
+Removing network todo_default
+```
+
+So far, our `app` container has its 3000 port published on your machine's 3000 port. That won't work
+if you deploy more than 1 container, as they can't all listen on the same port. You'll have to put a
+load balancer in front of your `app` containers, so that it can listen on the port, and redirect
+requests to the other containers.
+
+Make the following changes to the `docker-compose.yml` in the `todo` directory:
+
+* Remove the `ports: [ "3000:3000" ]` option from the `app` service.
+* Add a new `lb` (load balancer) service with the following configuration:
+
+  ```
+  lb:
+    image: nginx:1.13-alpine
+    ports:
+      - "3000:80"
+    restart: always
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+  ```
+
+(You will find the expected result in the `docker-compose-full.yml` file in the `todo` directory.)
+
+We're using the [official `nginx` image][hub-nginx] from the Docker hub, which will launch an
+[nginx][nginx] web server that will act as our [load balancer][nginx-lb]. Its 80 port will be
+published to your machine's 3000 port so that you'll be able to access `http://localhost:3000` like
+before.
+
+The `volumes` option defines a bind mount that will mount the `nginx.conf` file in the `todo`
+directory to `/etc/nginx/nginx.conf` in the container's file system. That is the default location
+for nginx's configuration file. The final `:ro` option defines the mount as read-only (nginx only
+needs to read from that file, not write to it).
+
+Look at the interesting parts of the `nginx.conf` file, the `upstream` and `server` directives:
+
+```
+upstream todo_cluster {
+  server todo_app_1:3000;
+  server todo_app_2:3000;
+  server todo_app_3:3000;
+}
+
+server {
+  listen 80;
+  server_name localhost;
+
+  location / {
+    proxy_pass http://todo_cluster;
+  }
+}
+```
+
+The `upstream` directive defines a group of 3 addresses that nginx can redirect traffic to. By
+default, nginx will use a round-robin strategy, meaning that each request will be redirected to the
+next address. The `proxy_pass` directive instructs nginx to redirect all requests to the upstream
+group.
+
+You can run this entire infrastructure like before with the `docker-compose up` command. Note the
+use of the `--scale <service=num>` option to define the number of containers to create for the `app`
+service:
+
+```bash
+$> docker-compose up --build -d --scale app=3
+Creating network "todo_default" with the default driver
+Building app
+...
+Successfully built 416a49a3a498
+Successfully tagged todo:latest
+Creating todo_lb_1 ... done
+Creating todo_db_1 ... done
+Creating todo_app_1 ... done
+Creating todo_app_2 ... done
+Creating todo_app_3 ... done
+```
+
+You now have 1 database container, 3 application containers and 1 load balancer containers running:
+
+```bash
+$> docker-compose ps
+   Name                 Command               State          Ports
+--------------------------------------------------------------------------
+todo_app_1   /usr/local/bin/entrypoint. ...   Up      3000/tcp
+todo_app_2   /usr/local/bin/entrypoint. ...   Up      3000/tcp
+todo_app_3   /usr/local/bin/entrypoint. ...   Up      3000/tcp
+todo_db_1    docker-entrypoint.sh mongod      Up      27017/tcp
+todo_lb_1    nginx -g daemon off;             Up      0.0.0.0:3000->80/tcp
+```
+
+The to-do application should run as before on [`http://localhost:3000`](http://localhost:3000),
+except that the "Running on host ..." message should change every time you reload the page, proving
+that you are in fact communicating with each container of the `app` service in turn.
 
 
 
@@ -2630,7 +2734,6 @@ connection and connection loss problems.
 * ephemeral container
 * unix process exit code, short-running vs long-running
 * dockerignore
-* docker compose horizontal scaling
 * docker swarm
 * best practice: dockerfile (init process)
 * best practice: multi-stage builds
@@ -2689,15 +2792,19 @@ connection and connection loss problems.
 [fortune]: https://en.wikipedia.org/wiki/Fortune_(Unix)
 [git-bash]: https://git-scm.com/downloads
 [glibc-etc]: http://www.etalabs.net/compare_libcs.html
+[horizontal-scaling]: https://en.wikipedia.org/wiki/Scalability#Horizontal_and_vertical_scaling
 [hub]: https://hub.docker.com
 [hub-alpine]: https://hub.docker.com/_/alpine/
 [hub-mongo]: https://hub.docker.com/_/mongo/
 [hub-mongo-dockerfile]: https://github.com/docker-library/mongo/blob/dd8ceb3b3552d11c901a603d0b8b303e2fe4bc2e/3.6/Dockerfile
+[hub-nginx]: https://hub.docker.com/_/nginx/
 [hub-node]: https://hub.docker.com/_/node/
 [hub-ubuntu]: https://hub.docker.com/_/ubuntu/
 [lxc]: https://linuxcontainers.org
 [mongo]: https://www.mongodb.com
 [musl-libc]: http://www.musl-libc.org
+[nginx]: https://www.nginx.com
+[nginx-lb]: http://nginx.org/en/docs/http/load_balancing.html
 [node]: https://nodejs.org/en/
 [squashing-layers]: #squashing-image-layers
 [union-fs]: https://en.wikipedia.org/wiki/UnionFS

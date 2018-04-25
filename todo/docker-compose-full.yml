@@ -2,6 +2,14 @@ version: '3'
 
 services:
 
+  lb:
+    image: nginx:1.13-alpine
+    ports:
+      - "3000:80"
+    restart: always
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+
   app:
     build:
       context: .
@@ -11,11 +19,11 @@ services:
       - db
     environment:
       DATABASE_URL: "mongodb://db:27017"
-    ports:
-      - "3000:3000"
+    restart: always
 
   db:
     image: mongo:3
+    restart: always
     volumes:
       - data:/data/db
 

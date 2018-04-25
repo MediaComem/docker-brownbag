@@ -8,8 +8,11 @@ const app = new Vue({
     todos: []
   },
   created: function() {
+    this.$http.get('/meta').then(res => {
+      this.hostname = res.body.hostname;
+    });
+
     this.$http.get('/todos').then(res => {
-      this.hostname = res.headers.get('Todo-Hostname');
       this.todos = res.body;
     });
   },

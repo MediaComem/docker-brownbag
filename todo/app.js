@@ -2,7 +2,6 @@ const bodyParser = require('body-parser');
 const express = require('express');
 const morgan = require('morgan');
 const path = require('path');
-const os = require('os');
 
 const index = require('./routes/index');
 const todos = require('./routes/todos');
@@ -26,12 +25,6 @@ app.use(morgan('dev'));
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: false }));
 app.use(express.static(path.join(__dirname, 'public')));
-
-// set Todo-Hostname header
-app.use((req, res, next) => {
-  res.set('Todo-Hostname', os.hostname());
-  next();
-});
 
 app.use('/', index);
 app.use('/todos', todos(app));
