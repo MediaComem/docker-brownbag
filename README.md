@@ -1,7 +1,10 @@
 # Docker Brown Bag: From Hello World to Swarm
 
-This document is a step-by-step procedure that you can follow to learn the basics of Docker, from
+This document is a step-by-step guide that you can follow to learn the basics of Docker, from
 running a hello world container to running a multi-machine swarm.
+
+Note: many names and IDs shown in sample command outputs in this guide are randomly generated or
+context-dependent, and will differ on your machine.
 
 <!-- START doctoc generated TOC please keep comment here to allow auto update -->
 <!-- DON'T EDIT THIS SECTION, INSTEAD RE-RUN doctoc TO UPDATE -->
@@ -36,13 +39,16 @@ running a hello world container to running a multi-machine swarm.
 - [Persistent storage](#persistent-storage)
   - [Bind mounts](#bind-mounts)
   - [Volumes](#volumes)
+- [Debugging containers](#debugging-containers)
+  - [Ephemeral containers](#ephemeral-containers)
 - [Docker Compose](#docker-compose)
   - [The `docker-compose.yml` file](#the-docker-composeyml-file)
   - [Running Docker Compose services](#running-docker-compose-services)
   - [Rebuilding Docker Compose services](#rebuilding-docker-compose-services)
   - [Starting containers automatically](#starting-containers-automatically)
   - [Horizontal scaling](#horizontal-scaling)
-- [Best Practices](#best-practices)
+- [Docker Swarm](#docker-swarm)
+- [Appendices](#appendices)
   - [Squashing image layers](#squashing-image-layers)
     - [Using the `--squash` option](#using-the---squash-option)
   - [Dockerfile tips](#dockerfile-tips)
@@ -54,6 +60,7 @@ running a hello world container to running a multi-machine swarm.
     - [Documenting exposed ports](#documenting-exposed-ports)
     - [Using an entrypoint script](#using-an-entrypoint-script)
       - [Waiting for other containers](#waiting-for-other-containers)
+  - [Multi-process containers](#multi-process-containers)
 - [TODO](#todo)
 - [References](#references)
 
@@ -78,21 +85,21 @@ running a hello world container to running a multi-machine swarm.
 
 ## What is Docker?
 
-Docker is the company driving the **container movement**.  Today's businesses are under pressure to
-digitally transform but are constrained by existing applications and infrastructure while
-rationalizing an **increasingly diverse portfolio of clouds, datacenters and application
-architectures**.  Docker enables true **independence between applications and infrastructure** and
-developers and IT ops to unlock their potential and creates a model for better collaboration and
-innovation.
+[Docker][what-is-docker] is the company driving the **container movement**.  Today's businesses are
+under pressure to digitally transform but are constrained by existing applications and
+infrastructure while rationalizing an **increasingly diverse portfolio of clouds, datacenters and
+application architectures**.  Docker enables true **independence between applications and
+infrastructure** and developers and IT ops to unlock their potential and creates a model for better
+collaboration and innovation.
 
 ### What is a container?
 
-A container image is a **lightweight, stand-alone, executable package of a piece of software** that
-includes everything needed to run it: code, runtime, system tools, system libraries, settings.
-Available for both Linux and Windows based apps, containerized software will always run the same,
-regardless of the environment. **Containers isolate software from its surroundings**, for example
-differences between development and staging environments and help reduce conflicts between teams
-running different software on the same infrastructure.
+A [container][what-is-container] image is a **lightweight, stand-alone, executable package of a
+piece of software** that includes everything needed to run it: code, runtime, system tools, system
+libraries, settings.  Available for both Linux and Windows based apps, containerized software will
+always run the same, regardless of the environment. **Containers isolate software from its
+surroundings**, for example differences between development and staging environments and help reduce
+conflicts between teams running different software on the same infrastructure.
 
 ![Docker containers](images/containers.png)
 
@@ -168,7 +175,7 @@ For more examples and ideas, visit:
 
 ### Run a container from an image
 
-Pull the [official Ubuntu image][hub-ubuntu] from the [Docker Hub][hub].
+Pull the [official Ubuntu image][hub-ubuntu] from the [Docker Hub][hub]:
 
 ```bash
 $> docker pull ubuntu
@@ -183,8 +190,9 @@ Digest: sha256:9ee3b83bcaa383e5e3b657f042f4034c92cdd50c03f73166c145c9ceaea9ba7c
 Status: Downloaded newer image for ubuntu:latest
 ```
 
-An **image** is a **blueprint** which form the basis of containers.
-This `ubuntu` image contains a headless Ubuntu operating system.
+An **image** is a **blueprint** which form the basis of containers. It's basically a given state of
+a file system. This `ubuntu` image contains a headless Ubuntu operating system with only basic
+packages installed.
 
 You can list available images with `docker images`:
 
@@ -204,12 +212,13 @@ hello from ubuntu
 
 This runs an Ubuntu container.
 
-Running a container means **executing the specified command**, in this case `echo "hello from ubuntu"`, starting from an **image**, in this case the Ubuntu image.
-The `echo` binary that is executed is the one provided by the Ubuntu OS in the image, not your machine.
+Running a container means **executing the specified command**, in this case `echo "hello from
+ubuntu"`, starting from an **image**, in this case the Ubuntu image.  The `echo` binary that is
+executed is the one provided by the Ubuntu OS in the image, not your machine.
 
-If you list the running containers with `docker ps`, you will see that the container we just ran is *not running*.
-A container **stops as soon as the process started by its command is done**.
-Since `echo` is not a long-running command, the container stopped right away.
+If you list the running containers with `docker ps`, you will see that the container we just ran is
+*not running*.  A container **stops as soon as the process started by its command is done**.  Since
+`echo` is not a long-running command, the container stopped right away.
 
 ```bash
 $> docker ps
@@ -282,7 +291,8 @@ $> docker run -it ubuntu bash
 root@e07f81d7941d:/#
 ```
 
-You can now run any command you want within the running container:
+You have a new command line prompt, indicating that you are within the container. You can now run
+any command you want within the running container:
 
 ```bash
 root@e07f81d7941d:/# date
@@ -957,6 +967,9 @@ building the Dockerfile.
 
 **Warning:** do not use your root directory, `/`, as the build context as it causes the build to
 transfer the entire contents of your hard drive to the Docker daemon.
+
+To ignore some files in the build context, use a [`.dockerignore` file][docker-ignore] (similar to a
+`.gitignore` file).
 
 ### Format
 
@@ -1862,6 +1875,109 @@ storing it on external services (e.g. cloud providers), transparently encrypting
 
 
 
+## Debugging containers
+
+A very useful command to debug containers is `docker exec <command...>`. It executes a command **in
+a running container**.
+
+For example, let's say you want to check what's in the `/usr/src/app` directory in the `app`
+container:
+
+```bash
+$> docker exec app ls -la /usr/src/app
+total 104
+drwxr-xr-x    1 todo     todo          4096 Apr 25 13:55 .
+drwxr-xr-x    1 root     root          4096 Apr 23 15:22 ..
+-rw-r--r--    1 todo     todo            13 Apr 23 14:41 .dockerignore
+-rw-r--r--    1 todo     todo            95 Apr 23 15:05 Dockerfile
+-rw-r--r--    1 todo     todo           518 Apr 25 07:15 Dockerfile.full
+-rw-r--r--    1 todo     todo          1242 Apr 25 13:37 app.js
+drwxr-xr-x    2 todo     todo          4096 Apr 23 13:21 bin
+-rw-r--r--    1 todo     todo           458 Apr 25 13:55 docker-compose-full.yml
+-rw-r--r--    1 todo     todo           305 Apr 25 13:53 docker-compose.yml
+-rwxr-xr-x    1 todo     todo           550 Apr 25 06:58 entrypoint.sh
+drwxr-xr-x    2 todo     todo          4096 Apr 23 13:31 models
+-rw-r--r--    1 todo     todo           746 Apr 25 13:36 nginx.conf
+drwxr-xr-x  131 todo     todo          4096 Apr 25 12:42 node_modules
+-rw-r--r--    1 todo     todo         36450 Apr 25 12:30 package-lock.json
+-rw-r--r--    1 todo     todo           293 Apr 25 12:30 package.json
+drwxr-xr-x    3 todo     todo          4096 Apr 23 14:33 public
+drwxr-xr-x    2 todo     todo          4096 Apr 23 13:28 routes
+drwxr-xr-x    2 todo     todo          4096 Apr 23 13:21 views
+```
+
+Or what's in the `/data/db` directory in the `db` container:
+
+```bash
+$> docker exec db ls -1 /data/db
+WiredTiger
+WiredTiger.lock
+WiredTiger.turtle
+WiredTiger.wt
+WiredTigerLAS.wt
+_mdb_catalog.wt
+collection-0--7247392160342363554.wt
+collection-2--7247392160342363554.wt
+collection-4--7247392160342363554.wt
+collection-7--7247392160342363554.wt
+diagnostic.data
+index-1--7247392160342363554.wt
+index-3--7247392160342363554.wt
+index-5--7247392160342363554.wt
+index-6--7247392160342363554.wt
+index-8--7247392160342363554.wt
+journal
+mongod.lock
+sizeStorer.wt
+storage.bson
+```
+
+You can execute any available command, including a full shell (if there is one in your container's
+file system). For example, let's run a shell in the `app` container:
+
+```bash
+$> docker exec -it app sh
+/usr/src/app $
+```
+
+You're now in the container! You can run any command you want:
+
+```bash
+/usr/src/app $ echo hello from $(hostname)
+hello from 5914ad5835e4
+
+/usr/src/app $ ls
+Dockerfile               docker-compose.yml       package-lock.json
+Dockerfile.full          entrypoint.sh            package.json
+app.js                   models                   public
+bin                      nginx.conf               routes
+docker-compose-full.yml  node_modules             views
+```
+
+Run `exit` once you're done:
+
+```bash
+/usr/src/app $ exit
+```
+
+### Ephemeral containers
+
+You could make changes to a running container using `docker exec`, but that's considered a bad
+practice.
+
+Containers produced by your Dockerfiles should be as **ephemeral** as possible. By "ephemeral", we
+mean that they can be stopped and destroyed and a new one built and put in place with an absolute
+minimum of set-up and configuration. You shouldn't have to perform additional manual changes in a
+container once it's started.
+
+You may want to take a look at the [Processes][12factor-processes] section of the [12 Factor app
+methodology][12factor] to get a feel for the motivations of running containers in such a stateless
+fashion.
+
+
+
+
+
 ## Docker Compose
 
 [Docker Compose][docker-compose] is a tool for defining and running multi-container Docker
@@ -2315,11 +2431,32 @@ The to-do application should run as before on [`http://localhost:3000`](http://l
 except that the "Running on host ..." message should change every time you reload the page, proving
 that you are in fact communicating with each container of the `app` service in turn.
 
+This is nice, but the `upstream` block in the `nginx.conf` configuration file is **hardcoded** to
+load balance over exactly 3 containers. Incidentally, nginx won't start if any of the containers is
+unreachable. This is not as flexible as we might want.
+
+There are several solutions to this problem. Here's two:
+
+* Use a [service discovery][service-discovery] tool like [Consul][consul], [Serf][serf] or
+  [ZooKeeper][zookeeper]. Setting up such a solution can enable the `lb` container to be aware of
+  what other containers are deployed at a given time, and to automatically update its configuration
+  when containers are started or stopped.
+* Use [Docker in swarm mode][docker-swarm], because it can manage the load balancing for you. You'll
+  see in action if you [read on](#docker-swarm).
 
 
 
 
-## Best Practices
+
+## Docker Swarm
+
+TODO
+
+
+
+
+
+## Appendices
 
 ### Squashing image layers
 
@@ -2766,21 +2903,22 @@ lifetime, after it has started. The best practice would be to change your code t
 application resilient to connection loss at or after startup, which would solve both the initial
 connection and connection loss problems.
 
+### Multi-process containers
+
+TODO
+
 
 
 
 
 ## TODO
 
+* docker swarm
 * dockerfile inheritance (all instructions, entrypoint, cmd)
 * show file system isolation by `cat`-ing clock script
-* ephemeral container
-* unix process exit code, short-running vs long-running
-* dockerignore
-* docker swarm
-* best practice: dockerfile (init process)
-* best practice: multi-stage builds
-* best practice: multi-process container (s6)
+* appendix: init process
+* appendix: multi-stage builds
+* appendix: multi-process container (s6)
 * add summary for each section
 * developing with Docker
 
@@ -2810,9 +2948,12 @@ connection and connection loss problems.
 
 
 
+[12factor]: https://12factor.net
+[12factor-processes]: https://12factor.net/processes
 [alpine]: https://alpinelinux.org
 [alpine-size]: https://news.ycombinator.com/item?id=10782897
 [bash]: https://en.wikipedia.org/wiki/Bash_(Unix_shell)
+[consul]: https://www.consul.io
 [cow]: https://en.wikipedia.org/wiki/Copy-on-write
 [docker-bridge-networks]: https://docs.docker.com/network/bridge/
 [docker-ce]: https://www.docker.com/community-edition
@@ -2820,6 +2961,7 @@ connection and connection loss problems.
 [docker-compose-cli]: https://docs.docker.com/compose/reference/overview/
 [docker-compose-file]: https://docs.docker.com/compose/compose-file/
 [docker-compose-install]: https://docs.docker.com/compose/install/
+[docker-ignore]: https://docs.docker.com/engine/reference/builder/#dockerignore-file
 [docker-restart-policy]: https://docs.docker.com/config/containers/start-containers-automatically/
 [docker-security]: https://docs.docker.com/engine/security/security/
 [docker-storage]: https://docs.docker.com/storage/
@@ -2828,6 +2970,7 @@ connection and connection loss problems.
 [docker-storage-tmpfs]: https://docs.docker.com/storage/tmpfs/
 [docker-storage-volume-drivers]: https://docs.docker.com/storage/volumes/#use-a-volume-driver
 [docker-storage-volumes]: https://docs.docker.com/storage/volumes/
+[docker-swarm]: https://docs.docker.com/engine/swarm/
 [dockerfile]: https://docs.docker.com/engine/reference/builder/
 [dockerfile-best-practices]: https://docs.docker.com/develop/develop-images/dockerfile_best-practices/
 [docker-networking]: https://docs.docker.com/network/
@@ -2850,9 +2993,12 @@ connection and connection loss problems.
 [nginx]: https://www.nginx.com
 [nginx-lb]: http://nginx.org/en/docs/http/load_balancing.html
 [node]: https://nodejs.org/en/
+[serf]: https://www.serf.io
+[service-discovery]: https://en.wikipedia.org/wiki/Service_discovery
 [squashing-layers]: #squashing-image-layers
 [union-fs]: https://en.wikipedia.org/wiki/UnionFS
 [what-is-a-container]: https://www.docker.com/what-container
 [what-is-docker]: https://www.docker.com/what-docker
 [wsl]: https://docs.microsoft.com/en-us/windows/wsl/install-win10
 [yaml]: http://yaml.org
+[zookeeper]: https://zookeeper.apache.org
