@@ -32,6 +32,9 @@ running a hello world container to running a multi-machine swarm.
   - [Exposing container ports on the host machine](#exposing-container-ports-on-the-host-machine)
   - [Docker networks](#docker-networks)
     - [Running a container in a network](#running-a-container-in-a-network)
+- [Persistent storage](#persistent-storage)
+  - [Bind mounts](#bind-mounts)
+  - [Volumes](#volumes)
 - [Best Practices](#best-practices)
   - [Squashing image layers](#squashing-image-layers)
     - [Using the `--squash` option](#using-the---squash-option)
@@ -1521,6 +1524,277 @@ requests.
 
 
 
+## Persistent storage
+
+Create a few to-do notes with the running application.
+
+Stop both containers and restart them:
+
+```bash
+$> docker stop app db
+app
+db
+$> docker start db
+db
+$> docker start app
+app
+```
+
+(Wait a few seconds after starting the `db` container before starting the `app` container. The
+Node.js application cannot start unless it successfully connects to the database. If the `app`
+container doesn't start the first time, re-run the `docker start app` command. See [Dockerfile
+Tips][dockerfile-tips] and [Waiting for other containers][dockerfile-tips-waiting] for a solution to
+this problem.)
+
+The application should again be running on [`http://localhost:3000`](http://localhost:3000), and
+your to-do notes should still be there.
+
+Now let's see what happens if you stop *and remove* both containers:
+
+```bash
+$> docker stop app db
+app
+db
+$> docker rm app db
+app
+db
+```
+
+Now re-run both containers with the same commands as before:
+
+```bash
+$> docker run -d --name db --network todo mongo:3
+f8afad7282fad05fb16230ef4c56a96bef969b7f3dad9c312b4a6b8c4024cd43
+$> docker run -d -e "DATABASE_URL=mongodb://db:27017" --name app --network todo -p 3000:3000 todo
+b4dfaf7d0d9f4669b13dac759c4b7858b0c23537a31183c7c757b8c9d48825b8
+```
+
+New container instances should be running:
+
+```bash
+$> docker ps
+CONTAINER ID        IMAGE               COMMAND                  CREATED             STATUS              PORTS                    NAMES
+b4dfaf7d0d9f        todo                "npm start"              7 seconds ago       Up 14 seconds       0.0.0.0:3000->3000/tcp   app
+f8afad7282fa        mongo:3             "docker-entrypoint.s…"   20 seconds ago      Up 28 seconds       27017/tcp                db
+```
+
+However, your to-do notes are gone!
+
+This is because, as we've seen, container data is written to a **top writable layer** in the union
+file system, and **that layer is deleted when the container is removed**.
+
+Let's see how to [manage data in Docker][docker-storage]. There are 3 solutions:
+
+* [Volumes][docker-storage-volumes] - Store data in a volume created and managed by Docker.
+* [Bind mounts][docker-storage-bind] - Mount a file/directory of the host machine into a container.
+* [tmpfs mounts][docker-storage-tmpfs] - Mount an in-memory directory into a container to store
+  non-persistent state or sensitive information.
+
+![Docker storage types](images/docker-storage.png)
+
+We'll talk about the first 2.
+
+### Bind mounts
+
+[Bind mounts][docker-storage-bind] have been around since the early days of Docker. When you use a
+bind mount, a **file or directory on the host machine is mounted into a container**. The file or
+directory is referenced by its full or relative path on the host machine.
+
+Bind mounts are very performant, but they rely on the host machine's filesystem having a specific
+directory structure available, making the container less portable. If you are developing new Docker
+applications, consider using [named volumes][docker-storage-volumes] instead (which we'll see in the
+next section). You can't use Docker commands to directly manage bind mounts.
+
+Let's stop the `app` and `db` containers and remove the `db` container. As before, this will clear
+all our data:
+
+```bash
+$> docker stop app db
+app
+db
+$> docker rm db
+```
+
+If you read the [official `mongo` image][hub-mongo]'s documentation, under its *Where to Store Data*
+heading, you will see that it stores the MongoDB server's data under the `/data/db` path in the
+container's file system. Let's bind mount a directory on your host machine to that directory, so
+that the data persists even after the container is removed.
+
+Rrun the database again, but add the `-v` or `--volume <hostDir:containerDir>` option to the `docker
+run` command:
+
+```bash
+$> docker run -d --name db --network todo -v ~/docker-brownbag-db:/data/db mongo:3
+0678bd8cafde87a6d0a6c29022d567d316d3a735229c08ab5387737644143283
+```
+
+This instructs Docker to create the `~/docker-brownbag-db` on your host machine, and to mount it
+into the running container at the `/data/db` path (overwriting anything that was already there).
+
+Give the MongoDB server a second or two to initialize, then list the contents of the
+`~/docker-brownbag-db` on your machine:
+
+```bash
+$> ls -1 ~/docker-brownbag-db
+WiredTiger
+WiredTiger.lock
+WiredTiger.turtle
+WiredTiger.wt
+WiredTigerLAS.wt
+_mdb_catalog.wt
+collection-0--8103351089522900052.wt
+collection-2--8103351089522900052.wt
+diagnostic.data
+index-1--8103351089522900052.wt
+index-3--8103351089522900052.wt
+journal
+mongod.lock
+sizeStorer.wt
+storage.bson
+```
+
+As you can see, the MongoDB server's data is indeed being stored into that directory. Note that the
+MongoDB server itself doesn't know about your `~/docker-brownbag-db` directory. From its point of
+view, it's simply writing files under `/data/db` in the container's file system. The Docker bind
+mount makes these writes go to your host machine instead of the container's top writable layer.
+
+Start the `app` container again:
+
+```bash
+$> docker start app
+app
+```
+
+Now play with the application–create a few todo-notes.
+
+Stop both containers and remove the `db` container again. As before, the top writable layer of the
+`db` container is deleted:
+
+```bash
+$> docker stop app db
+app
+db
+$> docker rm db
+db
+```
+
+Now re-run the `db` container, giving the same volume option as before, and restart the `app`
+container as well:
+
+```bash
+$> docker run -d --name db --network todo -v ~/docker-brownbag-db:/data/db mongo:3
+12b985e23b4bea3b25595e0a2c52cf85693cdc1e2851a7197e93929da3aeecf7
+$> docker start app
+app
+```
+
+This time, the persisted MongoDB server's data was mounted into the new container. Instead of
+initializing from scratch, the MongoDB server loaded the existing data (it's as if it was simply
+restarted). Your to-do notes are still here!
+
+### Volumes
+
+As mentioned, bind mounts are not ideal for container portability.
+
+[Volumes][docker-storage-volumes] are the preferred mechanism for persisting data generated by and
+used by Docker containers.  While bind mounts are dependent on the directory structure of the host
+machine, volumes are completely managed by Docker. Volumes have several advantages over bind mounts:
+
+* Volumes are easier to back up or migrate than bind mounts.
+* You can manage volumes using Docker CLI commands or the Docker API.
+* Volumes work on both Linux and Windows containers.
+* Volumes can be more safely shared among multiple containers.
+* Volume drivers allow you to store volumes on remote hosts or cloud providers, to encrypt the
+  contents of volumes, or to add other functionality.
+* A new volume's contents can be pre-populated by a container.
+
+
+In addition, volumes are often a better choice than persisting data in a container's writable layer,
+because using a volume does not increase the size of containers using it, and the volume's contents
+exist outside the lifecycle of a given container.
+
+Stop both containers again, remove the `db` container and the `~/docker-brownbag-db` directory on
+your machine:
+
+```bash
+$> docker stop app db
+app
+db
+$> docker rm db
+db
+$> rm -fr ~/docker-brownbag-db
+```
+
+To run a MongoDB server container with a volume instead of a bind mount, use the same volume option,
+but use an arbitrary name instead of a host machine directory, i.e. `todo_data` instead of
+`~/docker-brownbag-db`. Because it's not a path (it doesn't start with `~`, `.` or `/`), Docker
+interprets it as the name of a Docker volume, which it will automatically create if it doesnt exist.
+
+```bash
+$> docker run -d --name db --network todo -v todo_data:/data/db mongo:3
+b53c96764916b3531909171aeade9be2d86acfeccbf23a4128e55a04709d25d7
+```
+
+You can list volumes with the `docker volume ls` command:
+
+```bash
+$> docker volume ls
+DRIVER              VOLUME NAME
+...
+local               todo_data
+```
+
+Start the `app` container again, and you should be good to go:
+
+```bash
+$> docker start app
+app
+```
+
+Create a few todo-notes, then stop both containers and remove the `db` container again, and finally
+re-run the `db` container with the same command:
+
+```bash
+$> docker stop app db
+app
+db
+$> docker rm db
+db
+$> docker run -d --name db --network todo -v todo_data:/data/db mongo:3
+3ac1a6846a805d7821f8b80c230fe318fcb626b956b5b447e756cf1da1e221ae
+```
+
+Again, the MongoDB server's data persisted in the Docker volume, and a volume is not deleted when
+containers using it are removed, so your to-do notes are still here!
+
+If you inspect the volume, you can see where its data is actually stored:
+
+```bash
+$> docker inspect todo_data
+[
+    {
+        "CreatedAt": "2018-04-25T11:31:09Z",
+        "Driver": "local",
+        "Labels": null,
+        "Mountpoint": "/var/lib/docker/volumes/todo_data/_data",
+        "Name": "todo_data",
+        "Options": {},
+        "Scope": "local"
+    }
+]
+```
+
+(Note that this represents the path of the volume on the Docker host. When using Docker on macOS or
+Windows, this directory might not exist on your machine due to the intermediate virtual machine that
+is sometimes used. In that case, it exists on the virtual machine's file system.)
+
+[Volume drivers][docker-storage-volume-drivers] allow very flexible management of your data, such as
+storing it on external services (e.g. cloud providers), transparently encrypting content, etc.
+
+
+
+
+
 ## Best Practices
 
 ### Squashing image layers
@@ -1960,11 +2234,11 @@ the MongoDB server, and attempt to connect to it before the database is availabl
 The purpose of this script is to make sure the Node.js container waits for the MongoDB server to be
 available before starting the application.
 
-**Warning:** while this pattern is a quick-and-dirty fix that solves one issue: the initial
-connection to the database; it does nothing to help if the database connection is lost during your
-application's lifetime, after it has started. The best practice would be to change your code to make
-your application resilient to connection loss at or after startup, which would solve both the
-initial connection and connection loss problems.
+**Warning:** while this pattern is a quick fix that solves one issue, the initial connection to the
+database, it does nothing to help if the database connection is lost during your application's
+lifetime, after it has started. The best practice would be to change your code to make your
+application resilient to connection loss at or after startup, which would solve both the initial
+connection and connection loss problems.
 
 
 
@@ -1972,6 +2246,7 @@ initial connection and connection loss problems.
 
 ## TODO
 
+* integrate "what is a container" into readme
 * environment variables
 * copy-on-write
 * dockerfile inheritance (all instructions, entrypoint, cmd)
@@ -1997,7 +2272,11 @@ initial connection and connection loss problems.
 * [Docker Networking Overview][docker-networking]
   * [Docker Bridge Networks][docker-bridge-networks]
 * [Docker Security][docker-security]
-* [Docker Storage Drivers][docker-storage-drivers]
+* [Manage Data in Docker][docker-storage]
+  * [Docker Storage Drivers][docker-storage-drivers]
+  * [Use Volumes][docker-storage-volumes]
+  * [Use Bind Mounts][docker-storage-bind]
+  * [Use tmpfs Mounts][docker-storage-tmpfs]
 * [Dockerfile Reference][dockerfile]
   * [Best Practices for Writing Dockerfiles][dockerfile-best-practices]
 
@@ -2009,7 +2288,12 @@ initial connection and connection loss problems.
 [docker-bridge-networks]: https://docs.docker.com/network/bridge/
 [docker-ce]: https://www.docker.com/community-edition
 [docker-security]: https://docs.docker.com/engine/security/security/
+[docker-storage]: https://docs.docker.com/storage/
+[docker-storage-bind]: https://docs.docker.com/storage/bind-mounts/
 [docker-storage-drivers]: https://docs.docker.com/storage/storagedriver/
+[docker-storage-tmpfs]: https://docs.docker.com/storage/tmpfs/
+[docker-storage-volume-drivers]: https://docs.docker.com/storage/volumes/#use-a-volume-driver
+[docker-storage-volumes]: https://docs.docker.com/storage/volumes/
 [dockerfile]: https://docs.docker.com/engine/reference/builder/
 [dockerfile-best-practices]: https://docs.docker.com/develop/develop-images/dockerfile_best-practices/
 [docker-networking]: https://docs.docker.com/network/
