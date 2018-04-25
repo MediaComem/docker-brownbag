@@ -2,12 +2,14 @@ const app = new Vue({
   el: '#app',
   data: {
     title: 'TODO',
+    hostname: null,
     initialized: false,
     newTodoText: '',
     todos: []
   },
   created: function() {
     this.$http.get('/todos').then(res => {
+      this.hostname = res.headers.get('Todo-Hostname');
       this.todos = res.body;
     });
   },

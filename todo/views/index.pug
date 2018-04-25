@@ -3,10 +3,11 @@ extends layout
 block content
   #app.container
     h1.display-1 {{ title }}
+    p.text-muted(v-if='hostname') Running on host {{ hostname }}
 
     form.form-inline(v-on:submit.prevent='createTodo')
       label#todo-text.sr-only What to do
-      input#todo-text.form-control.mr-sm-2(placeholder='What to do...', v-model='newTodoText')
+      input#todo-text.form-control.mr-2(placeholder='What to do...', v-model='newTodoText')
       button.btn.btn-primary(type='submit') Add
 
     ul.list-group.mt-3

@@ -35,6 +35,10 @@ running a hello world container to running a multi-machine swarm.
 - [Persistent storage](#persistent-storage)
   - [Bind mounts](#bind-mounts)
   - [Volumes](#volumes)
+- [Docker Compose](#docker-compose)
+  - [The `docker-compose.yml` file](#the-docker-composeyml-file)
+  - [Running Docker Compose services](#running-docker-compose-services)
+  - [Rebuilding Docker Compose services](#rebuilding-docker-compose-services)
 - [Best Practices](#best-practices)
   - [Squashing image layers](#squashing-image-layers)
     - [Using the `--squash` option](#using-the---squash-option)
@@ -59,9 +63,11 @@ running a hello world container to running a multi-machine swarm.
 ## Requirements
 
 * [Docker Community Edition (CE)][docker-ce] (the latest version is `18.03.0-ce` at the time of
-  writing)
+  writing).
+* [Docker Compose][docker-compose-install] (installed by default if you're using Docker for Mac or
+  Docker for Windows).
 * A UNIX command line (on Windows, use [Git Bash][git-bash] or the [Windows Subsystem for
-  Linux][wsl])
+  Linux][wsl]).
 
 
 
@@ -1795,6 +1801,296 @@ storing it on external services (e.g. cloud providers), transparently encrypting
 
 
 
+## Docker Compose
+
+[Docker Compose][docker-compose] is a tool for defining and running multi-container Docker
+applications. With Compose, you use a **[YAML][yaml] file to configure your application's
+services**.  Then, with a single command, you **create and start all the services from your
+configuration**. It enables:
+
+* Multiple isolated environments on a single host.
+* Preserve volume data when containers are created.
+* Only recreate containers that have changed.
+* Variables and moving a composition between environments.
+
+Using Compose is basically a three-step process:
+
+* Define your app's environment with a Dockerfile so it can be reproduced anywhere (we've already
+  done that in the previous examples).
+* Define the services that make up your app in `docker-compose.yml` so they can be run together in
+  an isolated environment.
+* Run `docker-compose up` and Compose starts and runs your entire app.
+
+Compose has commands for managing the whole lifecycle of your application:
+
+* Start, stop, and rebuild services.
+* View the status of running services.
+* Stream the log output of running services.
+* Run a one-off command on a service.
+
+### The `docker-compose.yml` file
+
+If the containers from the previous steps are still running, remove them and also remove the Docker
+network and data volume we created so that we start from scratch:
+
+```bash
+$> docker rm -f app db
+app
+db
+$> docker network rm todo
+todo
+$> docker volume rm todo_data
+todo_data
+```
+
+It's a pain to remember the full commands we used before with all the correct options to build and
+start our 2-container infrastructure in a bridge network with a persistent data volume. If only
+there was a more reproducible solution.
+
+Enter the `docker-compose.yml` file:
+
+```
+version: '3'
+
+services:
+
+  app:
+    image: docker-brownbag/todo
+    build: .
+    depends_on:
+      - db
+    environment:
+      DATABASE_URL: "mongodb://db:27017"
+      NODE_ENV: production
+      PORT: 3000
+    ports:
+      - "3000:3000"
+
+  db:
+    image: mongo:3
+    volumes:
+      - data:/data/db
+
+volumes:
+  data:
+```
+
+This file defines 2 `app` and `db` **services** that can be managed with Docker Compose.
+
+Let's go into more details, looking at the `app` service first:
+
+```
+app:
+  build: .
+  image: todo
+  depends_on:
+    - db
+  environment:
+    DATABASE_URL: "mongodb://db:27017"
+  ports:
+    - "3000:3000"
+  restart: always
+```
+
+It's basically another way to indicate all the options and arguments we've passed to Docker commands
+so far::
+
+* The `build: .` option indicates that the `app` service should be built with `docker build` with
+  the current directory as the build context (where we will run the `docker-compose` command).
+* The `image: docker-brownbag/todo` option indicates that the resulting image should be tagged
+  as `todo`, exactly like `-t todo` option of the `docker build` command.
+* The `depends_on: [ db ]` option indicates that the `app` service depends on the `db` service, and
+  therefore the `db` service should be started first.
+* The `environment: ...` option is a map of environment variables to add to the service's
+  containers, exactly like the `--env` option of the `docker run` command.
+* The `ports: [ "3000:3000" ]` option indicates that the container's 3000 port should be published
+  to the host machine's 3000 port, exactly like the `--publish` option of the `docker run` command.
+
+Let's look at the `db` service:
+
+```
+db:
+  image: mongo:3
+  volumes:
+    - data:/data/db
+```
+
+* The `image: mongo:3` option indicates that a container should be launched from the `mongo:3` image
+  from the Docker hub, exactly like the first argument to the `docker run <image>` command.
+* The `volumes: [ data:/data/db ]` option indicates that a named Docker data volume
+  should be mounted into the container's file system at the `/data/db` path.
+
+Additionally, because we will run Docker Compose in the `todo` directory of the repository, Compose
+will assume that the project is named `todo`, and will use that to do a few things:
+
+* Container, network and volume names will be prefixed with the project name. For example, the data
+  volume is defined as `data` in the `db` service, so its full name will be `todo_data`.
+* Compose will automatically create a bridge network for our 2 services, which it will name
+  `default` with the project name as a prefix, so `todo_default` in our case.
+
+(Note that you may specify another project name with the `-p` or `--project-name <name>` option of
+the `docker-compose` command.)
+
+Finally, named data volumes must be declared, which is what the last section is for:
+
+```
+volumes:
+  data:
+```
+
+### Running Docker Compose services
+
+To redo everything we have done so far manually, this time with Docker Compose, all you have to do
+is go into the `todo` directory, and run the `docker-compose up` command:
+
+```bash
+$> docker-compose up --build -d
+Creating network "todo_default" with the default driver
+Creating volume "todo_data" with default driver
+Building app
+Step 1/5 : FROM node:8
+ ---> 4635bc7d130c
+Step 2/5 : WORKDIR /usr/src/app
+ ---> Using cache
+ ---> 9e5af697d233
+Step 3/5 : COPY . /usr/src/app/
+ ---> 5e40574ad223
+Step 4/5 : RUN npm install
+ ---> Running in ad28b5a06327
+added 142 packages in 2.576s
+Removing intermediate container ad28b5a06327
+ ---> 5dd56879c8c9
+Step 5/5 : CMD [ "npm", "start" ]
+ ---> Running in 06e2bd429d11
+Removing intermediate container 06e2bd429d11
+ ---> ab624a535392
+Successfully built ab624a535392
+Successfully tagged docker-brownbag/todo:latest
+Creating todo_db_1 ... done
+Creating todo_app_1 ... done
+```
+
+As you can see, it has:
+
+* Created a network.
+* Created a data volume.
+* Built the `todo` image.
+* Run 2 containers named `todo_app_1` and `todo_db_1` for the Node.js application and MongoDB
+  server, respectively.
+
+List networks, running containers and volumes to make sure:
+
+```bash
+$> docker network ls
+NETWORK ID          NAME                DRIVER              SCOPE
+...
+fc5505683b61        todo_default        bridge              local
+
+$> docker ps
+CONTAINER ID        IMAGE     COMMAND                  CREATED                  STATUS              PORTS                    NAMES
+a45ab4f341ba        todo      "npm start"              Less than a second ago   Up 2 seconds        0.0.0.0:3000->3000/tcp   todo_app_1
+4ea3b100947d        mongo:3   "docker-entrypoint.s…"   Less than a second ago   Up 2 seconds        27017/tcp                todo_db_1
+
+$> docker volume ls
+DRIVER              VOLUME NAME
+...
+local               todo_data
+```
+
+You can test the to-do application at [`http://localhost:3000`](http://localhost:3000) to make sure
+it runs as before.
+
+To test data persistence, stop and remove all services defined in the `docker-compose.yml` file with
+the `docker-compose stop` and `docker-compose rm` commands:
+
+```bash
+$> docker-compose stop
+Stopping todo_app_1 ... done
+Stopping todo_db_1  ... done
+
+$> docker-compose rm
+Going to remove todo_app_1, todo_db_1
+Are you sure? [yN] y
+Removing todo_app_1 ... done
+Removing todo_db_1  ... done
+```
+
+The network and data volume are preserved. To restart both containers, simply use `docker-compose
+up` again:
+
+```bash
+$> docker-compose up -d
+Creating todo_db_1 ... done
+Creating todo_app_1 ... done
+```
+
+### Rebuilding Docker Compose services
+
+If you attempt to run `docker-compose up` again with the `--build` option, note that it does
+nothing:
+
+```bash
+$> docker-compose up --build -d
+Building app
+Step 1/5 : FROM node:8
+ ---> 4635bc7d130c
+Step 2/5 : WORKDIR /usr/src/app
+ ---> Using cache
+ ---> 9e5af697d233
+Step 3/5 : COPY . /usr/src/app/
+ ---> Using cache
+ ---> 97025cac0eca
+Step 4/5 : RUN npm install
+ ---> Using cache
+ ---> 35f577413fa9
+Step 5/5 : CMD [ "npm", "start" ]
+ ---> Using cache
+ ---> 8215f1cda8b6
+Successfully built 8215f1cda8b6
+Successfully tagged docker-brownbag/todo:latest
+todo_db_1 is up-to-date
+todo_app_1 is up-to-date
+```
+
+It indicates that both containers are "up-to-date", meaning that since the images have not changed,
+it left the existing containers running and did not attempt to restart them.
+
+Make a change to the application. For example, open `todo/public/javascripts/client.js` and change
+the `title` property of the application. Then rebuild it:
+
+```bash
+$> docker-compose up --build -d
+Building app
+Step 1/5 : FROM node:8
+ ---> 4635bc7d130c
+Step 2/5 : WORKDIR /usr/src/app
+ ---> Using cache
+ ---> 9e5af697d233
+Step 3/5 : COPY . /usr/src/app/
+ ---> ebc195a1857e
+Step 4/5 : RUN npm install
+ ---> Running in 968a55027e1b
+added 141 packages in 2.615s
+Removing intermediate container 968a55027e1b
+ ---> c4cb8cf691a5
+Step 5/5 : CMD [ "npm", "start" ]
+ ---> Running in d9f7b8d1436b
+Removing intermediate container d9f7b8d1436b
+ ---> e67c21b4e1ab
+Successfully built e67c21b4e1ab
+Successfully tagged docker-brownbag/todo:latest
+todo_db_1 is up-to-date
+Recreating todo_app_1 ... done
+```
+
+As expected, the build cache was invalidated since the application changed. Docker Compose therefore
+recreated the `todo_app_1` container. But it still left `todo_db_1` intact since the change did not
+affect the database, so no recreation was necessary.
+
+
+
+
+
 ## Best Practices
 
 ### Squashing image layers
@@ -2251,15 +2547,17 @@ connection and connection loss problems.
 * copy-on-write
 * dockerfile inheritance (all instructions, entrypoint, cmd)
 * show file system isolation by `cat`-ing clock script
+* ephemeral container
 * unix process exit code, short-running vs long-running
 * dockerignore
-* share host file system (volume)
-* network
-* docker compose
+* docker compose restart always
+* docker compose horizontal scaling
 * docker swarm
 * best practice: dockerfile (init process)
 * best practice: multi-stage builds
 * best practice: multi-process container (s6)
+* add summary for each section
+* developing with Docker
 
 
 
@@ -2269,16 +2567,18 @@ connection and connection loss problems.
 
 * [What is Docker?][what-is-docker]
 * [What is a Container?][what-is-a-container]
+* [Docker Security][docker-security]
+* [Dockerfile Reference][dockerfile]
+  * [Best Practices for Writing Dockerfiles][dockerfile-best-practices]
 * [Docker Networking Overview][docker-networking]
   * [Docker Bridge Networks][docker-bridge-networks]
-* [Docker Security][docker-security]
 * [Manage Data in Docker][docker-storage]
   * [Docker Storage Drivers][docker-storage-drivers]
   * [Use Volumes][docker-storage-volumes]
   * [Use Bind Mounts][docker-storage-bind]
   * [Use tmpfs Mounts][docker-storage-tmpfs]
-* [Dockerfile Reference][dockerfile]
-  * [Best Practices for Writing Dockerfiles][dockerfile-best-practices]
+* [Docker Compose Overview][docker-compose]
+  * [Docker Compose File Reference][docker-compose-file]
 
 
 
@@ -2287,6 +2587,9 @@ connection and connection loss problems.
 [bash]: https://en.wikipedia.org/wiki/Bash_(Unix_shell)
 [docker-bridge-networks]: https://docs.docker.com/network/bridge/
 [docker-ce]: https://www.docker.com/community-edition
+[docker-compose]: https://docs.docker.com/compose/overview/
+[docker-compose-file]: https://docs.docker.com/compose/compose-file/
+[docker-compose-install]: https://docs.docker.com/compose/install/
 [docker-security]: https://docs.docker.com/engine/security/security/
 [docker-storage]: https://docs.docker.com/storage/
 [docker-storage-bind]: https://docs.docker.com/storage/bind-mounts/
@@ -2317,3 +2620,4 @@ connection and connection loss problems.
 [what-is-a-container]: https://www.docker.com/what-container
 [what-is-docker]: https://www.docker.com/what-docker
 [wsl]: https://docs.microsoft.com/en-us/windows/wsl/install-win10
+[yaml]: http://yaml.org

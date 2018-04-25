@@ -1,8 +1,8 @@
-const express = require('express');
-const path = require('path');
-const favicon = require('serve-favicon');
-const logger = require('morgan');
 const bodyParser = require('body-parser');
+const express = require('express');
+const morgan = require('morgan');
+const path = require('path');
+const os = require('os');
 
 const index = require('./routes/index');
 const todos = require('./routes/todos');
@@ -22,25 +22,30 @@ mongoose.set('debug', true);
 app.set('views', path.join(__dirname, 'views'));
 app.set('view engine', 'pug');
 
-// uncomment after placing your favicon in /public
-//app.use(favicon(path.join(__dirname, 'public', 'favicon.ico')));
-app.use(logger('dev'));
+app.use(morgan('dev'));
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: false }));
 app.use(express.static(path.join(__dirname, 'public')));
+
+// set Todo-Hostname header
+app.use((req, res, next) => {
+  res.set('Todo-Hostname', os.hostname());
+  next();
+});
 
 app.use('/', index);
 app.use('/todos', todos(app));
 
 // catch 404 and forward to error handler
-app.use(function(req, res, next) {
+app.use((req, res, next) => {
   const err = new Error('Not Found');
   err.status = 404;
   next(err);
 });
 
 // error handler
-app.use(function(err, req, res, next) {
+app.use((err, req, res, next) => {
+
   // set locals, only providing error in development
   res.locals.message = err.message;
   res.locals.error = req.app.get('env') === 'development' ? err : {};

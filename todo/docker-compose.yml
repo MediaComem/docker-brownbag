@@ -1,0 +1,23 @@
+version: '3'
+
+services:
+
+  app:
+    build: .
+    image: docker-brownbag/todo
+    depends_on:
+      - db
+    environment:
+      DATABASE_URL: "mongodb://db:27017"
+      NODE_ENV: production
+      PORT: 3000
+    ports:
+      - "3000:3000"
+
+  db:
+    image: mongo:3
+    volumes:
+      - data:/data/db
+
+volumes:
+  data:
