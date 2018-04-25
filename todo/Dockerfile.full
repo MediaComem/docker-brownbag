@@ -13,7 +13,6 @@ RUN addgroup -S todo && \
 USER todo:todo
 
 COPY --chown=todo:todo package.json package-lock.json /usr/src/app/
-
 WORKDIR /usr/src/app
 RUN npm install
 
@@ -21,4 +20,6 @@ COPY --chown=todo:todo . /usr/src/app/
 
 EXPOSE 3000
 
+COPY entrypoint.sh /usr/local/bin/entrypoint.sh
+ENTRYPOINT [ "/usr/local/bin/entrypoint.sh" ]
 CMD [ "npm", "start" ]

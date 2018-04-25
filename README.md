@@ -27,9 +27,19 @@ running a hello world container to running a multi-machine swarm.
   - [Format](#format)
   - [Build an image from a Dockerfile](#build-an-image-from-a-dockerfile)
   - [Build cache](#build-cache)
-  - [Squashing layers](#squashing-layers)
-    - [Using the `--squash` option](#using-the---squash-option)
   - [A Dockerfile for a Node.js application](#a-dockerfile-for-a-nodejs-application)
+- [Best Practices](#best-practices)
+  - [Squashing image layers](#squashing-image-layers)
+    - [Using the `--squash` option](#using-the---squash-option)
+  - [Dockerfile tips](#dockerfile-tips)
+    - [Using smaller base images](#using-smaller-base-images)
+    - [Labeling images](#labeling-images)
+    - [Environment variables](#environment-variables)
+    - [Non-root users](#non-root-users)
+    - [Speeding up builds](#speeding-up-builds)
+    - [Documenting exposed ports](#documenting-exposed-ports)
+    - [Using an entrypoint script](#using-an-entrypoint-script)
+      - [Waiting for other containers](#waiting-for-other-containers)
 - [TODO](#todo)
 - [References](#references)
 
@@ -1124,6 +1134,9 @@ script has changed.
 Consequently, all further instructions after that `COPY` cannot use the cache, since the state upon
 which they are based has changed. Therefore, the last `RUN` instruction also does not use the cache.
 
+See [Squashing Image Layers][squashing-layers] for tips on how to minimize build time and the number
+of layers.
+
 ### A Dockerfile for a Node.js application
 
 The `todo` directory contains a sample Node.js application to manage to-do notes.
@@ -1225,7 +1238,12 @@ npm ERR!     /root/.npm/_logs/2018-04-23T15_27_29_784Z-debug.log
 It doesn't work because it attempts to connect to a MongoDB database on `localhost:27017` and there
 is no such thing. Even if you do actually have a MongoDB database running on that port for
 development, remember that each container has its own isolated network stack, so it can't reach
-services listening on your machine's ports by default.
+services listening on your host machine's ports by default.
+
+We will run a database in the next section.
+
+See [Dockerfile Tips][dockerfile-tips] for more information and good practices concerning
+Dockerfiles.
 
 
 
@@ -1233,7 +1251,7 @@ services listening on your machine's ports by default.
 
 ## Best Practices
 
-### Squashing layers
+### Squashing image layers
 
 It is considered good practice to minimize the number of layers in a Docker image:
 
@@ -1447,12 +1465,234 @@ if you are unfamiliar).
 
 #### Labeling images
 
-It is good practice to label your images with the `LABEL` instruction. A popular convention is to
-add a `maintainer` label to provide a maintenance contact e-mail:
+Labels are metadata attached to images and containers. They can be used to influence the behavior of
+some commands, such as `docker ps`. You can add labels from a Dockerfile with the `LABEL`
+instruction.
+
+A popular convention is to add a `maintainer` label to provide a maintenance contact e-mail:
 
 ```
 LABEL maintainer="mei-admin@heig-vd.ch"
 ```
+
+You may see the labels of an image or container with `docker inspect`.
+
+You may also filter containers by label. For example, to see all running containers that have the
+`foo` label set to the value `bar`, you can use the following command:
+
+```bash
+docker ps -f label=foo=bar
+```
+
+#### Environment variables
+
+The `ENV` instruction allows you to set environment variables. Many applications change their
+behavior in response to some variables. The to-do application example is an [Express][express]
+application, so it runs in production mode if the `$NODE_ENV` variable is set to `production`.
+Additionally, it listens on the port specified by the `$PORT` variable.
+
+The application should be run in production if you intend to deploy it, and it's good practice to
+explicitly set the port rather than relying on the default value, so we set both variables:
+
+```
+ENV NODE_ENV=production \
+    PORT=3000
+```
+
+#### Non-root users
+
+All commands run by a Dockerfile (`RUN` and `CMD` instructions) are **run by the `root` user** of
+the container by default. This is not a good idea as any security flaw in your application may give
+root access to the entire container to an attacker.
+
+The security impact of this would be mitigated since the container is isolated from the host
+machine, but it could still be a **severe security issue** depending on your container's
+configuration.
+
+Therefore, it is good practice to create an **unprivileged user** to run your application even in
+the container. Here we use Alpine Linux's `addgroup` and `adduser` commands to create a user, and
+make sure that the `/usr/src/app` directory where we will copy the application is owned by that
+user:
+
+```
+RUN addgroup -S todo && \
+    adduser -S -G todo todo && \
+    mkdir -p /usr/src/app && \
+    chown todo:todo /usr/src/app
+```
+
+(Note that these commands are specific to Alpine Linux. You would use `groupadd` and `useradd` on
+Ubuntu, for example, which use different options.)
+
+Finally, we use the `USER` instruction to make sure that all further commands run in this Dockerfile
+(by `RUN` or `CMD` instructions) are executed as the new user instead of the root user:
+
+```
+USER todo:todo
+```
+
+As you will see, some of the next `COPY` commands in the Dockerfile use the `--chown=todo:todo`
+flag. This is because files copied with a `COPY` instruction are always owned by the root user,
+regardless of the `USER` instruction, unless the `--chown` (change ownership) flag is used.
+
+#### Speeding up builds
+
+The following pattern is popular to speed up builds of applications that use a package manager (e.g.
+npm, RubyGems, Composer).
+
+Installing packages is often one of the slowest command to run for small applications, so we want to
+take advantage of Docker's build cache as much as possible to avoid running it every time. Suppose
+you did this like in the example Dockerfile of the todo-application:
+
+```
+COPY . /usr/src/app/
+WORKDIR /usr/src/app
+RUN npm install
+```
+
+Every time you make the slightest change in any of the application's files, the `COPY` instruction's
+cache, and all further commands' caches will be invalidated, including the cache for the `RUN npm
+install` instruction. Therefore, any change will trigger a full installation of all dependencies
+from scratch.
+
+To improve this behavior, you can split the installation of your application in the container into
+two parts. The first part is to copy only the package manager's files (in this case `package.json`
+and `package-lock.json`) into the application's directory, and to run an `npm install` command like
+before:
+
+```
+COPY --chown=todo:todo package.json package-lock.json /usr/src/app/
+WORKDIR /usr/src/app
+RUN npm install
+```
+
+Now, if a change is made to the `package.json` or `package-lock.json` files, the cache of the `RUN
+npm install` instruction will be invalidated like before, and the dependencies will be re-installed,
+which we want since the change was probably a dependency update. However, changes in any other file
+of the application will not invalidate the cache for those 3 instructions, so the result of the `RUN
+npm install` instruction will remain cached.
+
+The second part of the installation process is to copy the rest of your application into the
+directory:
+
+```
+COPY --chown=todo:todo . /usr/src/app/
+```
+
+Now, if any file in your application changes, the cache of further instructions will be invalidated,
+but since the `RUN npm install` instruction comes before, it will remain in the cache and be skipped
+at build time (unless you modify the `package.json` or `package-lock.json` files).
+
+#### Documenting exposed ports
+
+The `EXPOSE` instruction informs Docker that the container listens on the specified network ports at
+runtime.
+
+```
+EXPOSE 3000
+```
+
+The `EXPOSE` instruction does not actually publish the port. It functions as a type of documentation
+between the person who builds the image and the person who runs the container, about which ports are
+intended to be published. To actually publish the port when running the container, use the `-p`
+option on `docker run` to publish and map one or more ports, or the `-P` option to publish all
+exposed ports and map them to high-order ports.
+
+#### Using an entrypoint script
+
+We've seen that the `CMD` instruction defines the default command to run in the container, but
+Docker actually uses 2 instructions to determine the full command to run: `ENTRYPOINT` and `CMD`.
+
+Basically the `ENTRYPOINT` and `CMD` instructions together form the full command. For example, if
+your `ENTRYPOINT` is `[ "npm" ]` and your `CMD` is `[ "start" ]`, the full command run in the
+container will be `npm start`. The `ENTRYPOINT` is not set by default.
+
+Another characteristic of the `ENTRYPOINT` instruction is that it is **not overriden** when you
+specify a different command to `docker run <image> <command...>`. Only the `CMD` instruction is
+overriden. To override the entrypoint, you need to add the `--entrypoint` option to the `docker run`
+command.
+
+For example, assume that your Dockerfile contains the following instructions:
+
+```
+ENTRYPOINT [ "npm" ]
+CMD [ "start" ]
+```
+
+Here's a few examples of the behavior of `ENTRYPOINT` and `CMD` with various `docker run` options:
+
+* `docker run my-image` - The command run will be `npm start`.
+* `docker run my-image test` - The command run will be `npm test`.
+* `docker run --entrypoint foo my-image` - The command run will be `foo` (note that the default
+  `CMD` is not used when you override the entrypoint).
+* `docker run --entrypoint foo my-image bar` - The command run will be `foo bar`
+
+In our case, we use a new `entrypoint.sh` shell script as the entrypoint, because we want to perform
+some work before running the actual application (read on to find out why):
+
+```
+COPY entrypoint.sh /usr/local/bin/entrypoint.sh
+ENTRYPOINT [ "/usr/local/bin/entrypoint.sh" ]
+CMD [ "npm", "start" ]
+```
+
+The full command executed by our container will therefore be `/usr/local/bin/entrypoint.sh npm start`.
+
+##### Waiting for other containers
+
+The purpose of our entrypoint script is to wait for other containers before actually starting the
+application, in this case the database (assumed to be available at the host `db` and port `27017`).
+
+When starting, our Node.js application will exit with an error if the database is not reachable.
+This script checks whether a TCP connection can be established at the database's presumed address
+every second during 60 seconds. It stops successfully as soon as it can establish a connection, or
+fails if it can't (after 60 seconds):
+
+```sh
+#!/usr/bin/env sh
+command -v nc &>/dev/null || { >&2 echo "This script requires the 'nc' command (from netcat-openbsd)"; exit 2; }
+command -v seq &>/dev/null || { >&2 echo "This script requires the 'seq' command (from coreutils)"; exit 2; }
+
+attempts=${ATTEMPTS:-60}
+host=${DATABASE_HOST:-"db"}
+port=${DATABASE_PORT:-"27017"}
+
+for n in `seq 1 $attempts`; do
+  if nc -z -w 1 $host $port; then
+    break
+  elif test $n -eq $attempts; then
+    exit 1
+  fi
+
+  echo "Attempting to connect to database on ${host}:${port} ($n)..."
+  sleep 1
+done
+
+exec "$@"
+```
+
+Why do this when you can declare dependencies between containers with Docker Compose and have it
+start them in the correct order? Because while Docker Compose will start the containers in the
+correct order, it will not wait for the processes inside the containers to finish starting before
+moving on to the next container.
+
+In our example, the MongoDB container is "started" as far as Docker is concerned, as soon as Docker
+has successfully run the command to start the MongoDB server. But the server may take a few seconds
+to initialize before it starts listening on the 27017 port, which Docker doesn't know (the `EXPOSE`
+instruction doesn't help in that regard).
+
+As soon as it's "started" the MongoDB container, Docker will attempt to start the Node.js
+application container. It's entirely possible that the Node.js application will start faster than
+the MongoDB server, and attempt to connect to it before the database is available.
+
+The purpose of this script is to make sure the Node.js container waits for the MongoDB server to be
+available before starting the application.
+
+**Warning:** while this pattern is a quick-and-dirty fix that solves one issue: the initial
+connection to the database; it does nothing to help if the database connection is lost during your
+application's lifetime, after it has started. The best practice would be to change your code to make
+your application resilient to connection loss at or after startup, which would solve both the
+initial connection and connection loss problems.
 
 
 
@@ -1460,6 +1700,10 @@ LABEL maintainer="mei-admin@heig-vd.ch"
 
 ## TODO
 
+* environment variables
+* copy-on-write
+* dockerfile inheritance (all instructions, entrypoint, cmd)
+* show file system isolation by `cat`-ing clock script
 * unix process exit code, short-running vs long-running
 * dockerignore
 * share host file system (volume)
@@ -1490,6 +1734,8 @@ LABEL maintainer="mei-admin@heig-vd.ch"
 [docker-security]: https://docs.docker.com/engine/security/security/
 [docker-storage-drivers]: https://docs.docker.com/storage/storagedriver/
 [dockerfile]: https://docs.docker.com/engine/reference/builder/
+[dockerfile-tips]: #dockerfile-tips
+[express]: http://expressjs.com
 [fortune]: https://en.wikipedia.org/wiki/Fortune_(Unix)
 [git-bash]: https://git-scm.com/downloads
 [glibc-etc]: http://www.etalabs.net/compare_libcs.html
@@ -1502,6 +1748,7 @@ LABEL maintainer="mei-admin@heig-vd.ch"
 [mongo]: https://www.mongodb.com
 [musl-libc]: http://www.musl-libc.org
 [node]: https://nodejs.org/en/
+[squashing-layers]: #squashing-image-layers
 [union-fs]: https://en.wikipedia.org/wiki/UnionFS
 [what-is-a-container]: https://www.docker.com/what-container
 [what-is-docker]: https://www.docker.com/what-docker
