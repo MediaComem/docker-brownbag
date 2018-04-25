@@ -39,6 +39,7 @@ running a hello world container to running a multi-machine swarm.
   - [The `docker-compose.yml` file](#the-docker-composeyml-file)
   - [Running Docker Compose services](#running-docker-compose-services)
   - [Rebuilding Docker Compose services](#rebuilding-docker-compose-services)
+  - [Starting containers automatically](#starting-containers-automatically)
 - [Best Practices](#best-practices)
   - [Squashing image layers](#squashing-image-layers)
     - [Using the `--squash` option](#using-the---squash-option)
@@ -2024,6 +2025,35 @@ Creating todo_db_1 ... done
 Creating todo_app_1 ... done
 ```
 
+Docker Compose has many utility commands which simply working with a multi-container application.
+For example, the `docker-compose ps` command lists service containers:
+
+```bash
+$> docker-compose ps
+   Name                Command             State           Ports
+-------------------------------------------------------------------------
+todo_app_1   npm start                     Up      0.0.0.0:3000->3000/tcp
+todo_db_1    docker-entrypoint.sh mongod   Up      27017/tcp
+```
+
+The `docker-compose logs <service>` command allows you to check a service's logs without knowing the
+exact name of the containers:
+
+```bash
+$> docker-compose logs app
+Attaching to todo_app_1
+app_1  |
+app_1  | > todo@0.0.0 start /usr/src/app
+app_1  | > node ./bin/www
+app_1  |
+app_1  | GET / 304 277.099 ms - -
+app_1  | GET /javascripts/client.js 200 4.445 ms - 656
+app_1  | Mongoose: todos.find({}, { sort: { createdAt: 1 }, fields: {} })
+app_1  | GET /todos 304 16.767 ms - -
+```
+
+And [much more][docker-compose-cli].
+
 ### Rebuilding Docker Compose services
 
 If you attempt to run `docker-compose up` again with the `--build` option, note that it does
@@ -2086,6 +2116,56 @@ Recreating todo_app_1 ... done
 As expected, the build cache was invalidated since the application changed. Docker Compose therefore
 recreated the `todo_app_1` container. But it still left `todo_db_1` intact since the change did not
 affect the database, so no recreation was necessary.
+
+### Starting containers automatically
+
+There are several reasons you might want to start your containers automatically rather than
+manually:
+
+* You want them to restart automatically if the host machine reboots.
+* You want them to restart automatically if the process in the container crashes due to a bug,
+  causing the container to stop.
+
+Docker can be instructed to automatically start containers by using a restart policy either when
+running containers manually or when using Docker Compose:
+
+* Add a `--restart <policy>` option to your `docker run` command.
+* Add a `restart: <policy>` option to your `docker-compose.yml` file.
+
+For example, here's what the services in the previous `docker-compose.yml` example look like with an
+additional restart policy:
+
+```
+app:
+  build: .
+  image: docker-brownbag/todo
+  depends_on:
+    - db
+  environment:
+    DATABASE_URL: "mongodb://db:27017"
+    NODE_ENV: production
+    PORT: 3000
+  restart: always
+  ports:
+    - "3000:3000"
+
+db:
+  image: mongo:3
+  restart: always
+  volumes:
+    - data:/data/db
+```
+
+That way, Docker can also fulfill the role of process manager.
+
+The available restart policies are:
+
+* `no` - Do not automatically restart the container. (the default).
+* `on-failure` - Restart the container if it exits due to an error, which manifests as a non-zero
+  exit code.
+* `unless-stopped` - Restart the container unless it is explicitly stopped or Docker itself is
+  stopped or restarted.
+* `always` - Always restart the container if it stops.
 
 
 
@@ -2550,7 +2630,6 @@ connection and connection loss problems.
 * ephemeral container
 * unix process exit code, short-running vs long-running
 * dockerignore
-* docker compose restart always
 * docker compose horizontal scaling
 * docker swarm
 * best practice: dockerfile (init process)
@@ -2578,7 +2657,10 @@ connection and connection loss problems.
   * [Use Bind Mounts][docker-storage-bind]
   * [Use tmpfs Mounts][docker-storage-tmpfs]
 * [Docker Compose Overview][docker-compose]
+  * [Docker Compose Installation][docker-compose-install]
   * [Docker Compose File Reference][docker-compose-file]
+  * [Overview of Docker Compose CLI][docker-compose-cli]
+* [Starting containers automatically][docker-restart-policy]
 
 
 
@@ -2588,8 +2670,10 @@ connection and connection loss problems.
 [docker-bridge-networks]: https://docs.docker.com/network/bridge/
 [docker-ce]: https://www.docker.com/community-edition
 [docker-compose]: https://docs.docker.com/compose/overview/
+[docker-compose-cli]: https://docs.docker.com/compose/reference/overview/
 [docker-compose-file]: https://docs.docker.com/compose/compose-file/
 [docker-compose-install]: https://docs.docker.com/compose/install/
+[docker-restart-policy]: https://docs.docker.com/config/containers/start-containers-automatically/
 [docker-security]: https://docs.docker.com/engine/security/security/
 [docker-storage]: https://docs.docker.com/storage/
 [docker-storage-bind]: https://docs.docker.com/storage/bind-mounts/
