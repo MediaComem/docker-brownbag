@@ -2442,8 +2442,8 @@ There are several solutions to this problem. Here's two:
   [ZooKeeper][zookeeper]. Setting up such a solution can enable the `lb` container to be aware of
   what other containers are deployed at a given time, and to automatically update its configuration
   when containers are started or stopped.
-* Use [Docker in swarm mode][docker-swarm], because it can manage the load balancing for you. You'll
-  see in action if you [read on](#docker-swarm).
+* Use [Docker in swarm mode][docker-swarm], because it can manage services and load balancing for
+  you. You'll see in action if you [read on](#docker-swarm).
 
 
 
@@ -2451,7 +2451,160 @@ There are several solutions to this problem. Here's two:
 
 ## Docker Swarm
 
-TODO
+```bash
+root@vm1:~# docker swarm init --advertise-addr 192.168.50.4
+Swarm initialized: current node (s9klmcfzhn0j0qww2qjv2hkrs) is now a manager.
+
+To add a worker to this swarm, run the following command:
+
+    docker swarm join --token SWMTKN-1-4m7la1jfwvsiycxoeky84ljag8gn3z1f6j15j1tyxgc7t34gfx-5h00wpxkbj6jc6dd4pt9m7mny 192.168.50.4:2377
+
+To add a manager to this swarm, run 'docker swarm join-token manager' and follow the instructions.
+```
+
+```bash
+root@vm1:~# docker node ls
+ID                            HOSTNAME            STATUS              AVAILABILITY        MANAGER STATUS      ENGINE VERSION
+s9klmcfzhn0j0qww2qjv2hkrs *   vm1                 Ready               Active              Leader              18.03.0-ce
+```
+
+```bash
+root@vm2:~# docker swarm join --token SWMTKN-1-4m7la1jfwvsiycxoeky84ljag8gn3z1f6j15j1tyxgc7t34gfx-5h00wpxkbj6jc6dd4pt9m7mny 192.168.50.4:2377
+This node joined a swarm as a worker.
+```
+
+```bash
+root@vm3:~# docker swarm join --token SWMTKN-1-4m7la1jfwvsiycxoeky84ljag8gn3z1f6j15j1tyxgc7t34gfx-5h00wpxkbj6jc6dd4pt9m7mny 192.168.50.4:2377
+This node joined a swarm as a worker.
+```
+
+```bash
+root@vm1:~# docker node ls
+ID                            HOSTNAME            STATUS              AVAILABILITY        MANAGER STATUS      ENGINE VERSION
+s9klmcfzhn0j0qww2qjv2hkrs *   vm1                 Ready               Active              Leader              18.03.0-ce
+tfeytcntwewcbk5wcywalxjzd     vm2                 Ready               Active                                  18.03.0-ce
+```
+
+```bash
+root@vm1:~# docker node update --label-add zone=dmz vm1
+vm1
+
+root@vm1:~# docker node update --label-add type=storage --label-add zone=lan vm2
+vm2
+
+root@vm1:~# docker node update --label-add zone=lan vm3
+vm3
+```
+
+```bash
+root@vm1:~# docker run -d \
+  --restart=always \
+  --name registry \
+  -v /vagrant/tmp:/certs \
+  -e REGISTRY_HTTP_ADDR=0.0.0.0:443 \
+  -e REGISTRY_HTTP_TLS_CERTIFICATE=/certs/domain.crt \
+  -e REGISTRY_HTTP_TLS_KEY=/certs/domain.key \
+  -p 443:443 \
+  registry:2
+Unable to find image 'registry:2' locally
+2: Pulling from library/registry
+81033e7c1d6a: Pull complete
+b235084c2315: Pull complete
+c692f3a6894b: Pull complete
+ba2177f3a70e: Pull complete
+a8d793620947: Pull complete
+Digest: sha256:672d519d7fd7bbc7a448d17956ebeefe225d5eb27509d8dc5ce67ecb4a0bce54
+Status: Downloaded newer image for registry:2
+1d8f7aa1b7795d3bdcce623ec174918a132ce9abf659d5199f737453ccd466a8
+```
+
+```bash
+root@vm1:~# docker ps
+CONTAINER ID        IMAGE               COMMAND                  CREATED             STATUS              PORTS                            NAMES
+1d8f7aa1b779        registry:2          "/entrypoint.sh /etc…"   45 seconds ago      Up 44 seconds       0.0.0.0:443->443/tcp, 5000/tcp   registry
+```
+
+```bash
+root@vm1:~# cd /vagrant/todo
+
+root@vm1:/vagrant/todo# docker build -f Dockerfile.full -t 192.168.50.4:443/todo .
+Sending build context to Docker daemon  69.12kB
+Step 1/13 : FROM node:8-alpine
+8-alpine: Pulling from library/node
+605ce1bd3f31: Pull complete
+0511902e1bcd: Pull complete
+343e34c41f87: Pull complete
+Digest: sha256:d0febbb04c15f58a28888618cf5c3f1d475261e25702741622f375d0a82e050d
+Status: Downloaded newer image for node:8-alpine
+...
+Successfully built 073b4de87319
+Successfully tagged 192.168.50.4:443/todo:latest
+```
+
+```bash
+root@vm1:/vagrant/todo# docker push 192.168.50.4:443/todo
+The push refers to repository [192.168.50.4:443/todo]
+e1b160971701: Pushed
+2df32d5d8e82: Pushed
+e7238aaba1f3: Pushed
+f276f6863123: Pushed
+47c6cfbfe051: Pushed
+2832e3e1d3a9: Pushed
+0f0aa102cc1f: Pushed
+9dfa40a0da3b: Pushed
+latest: digest: sha256:23996894f90e4b144161e3dc8de07d1025e494691979bb3940ef1fc421ce2c3a size: 1994
+```
+
+```bash
+root@vm1:/vagrant/todo# docker stack deploy -c docker-compose-swarm.yml todo
+Creating network todo_default
+Creating service todo_lb
+Creating service todo_app
+Creating service todo_db
+```
+
+```bash
+root@vm1:/vagrant/todo# docker service ls
+ID                  NAME                MODE                REPLICAS            IMAGE                          PORTS
+j48resqwpsli        todo_app            replicated          4/4                 192.168.50.4:443/todo:latest
+ed8rwb6k3co4        todo_db             replicated          1/1                 mongo:3
+l6axuc05ctpb        todo_lb             replicated          1/1                 nginx:1.13-alpine              *:80->80/tcp
+```
+
+```bash
+root@vm1:/vagrant/todo# docker ps
+CONTAINER ID   IMAGE                          COMMAND                  CREATED              STATUS              PORTS                            NAMES
+6e5555644b82   nginx:1.13-alpine              "nginx -g 'daemon of…"   About a minute ago   Up About a minute   80/tcp                           todo_lb.1.bsfr4sa8dytgzb55e3gvm315u
+6d4243ec2e0f   192.168.50.4:443/todo:latest   "/usr/local/bin/entr…"   About a minute ago   Up About a minute   3000/tcp                         todo_app.2.9685t8c7p9jvjw4nmg0svlb7u
+0579018b22c5   192.168.50.4:443/todo:latest   "/usr/local/bin/entr…"   About a minute ago   Up About a minute   3000/tcp                         todo_app.4.br7402xmhw8ysfhjyvlofbhs5
+1d8f7aa1b779   registry:2                     "/entrypoint.sh /etc…"   5 minutes ago        Up 5 minutes        0.0.0.0:443->443/tcp, 5000/tcp   registry
+```
+
+```bash
+root@vm2:~# docker ps
+CONTAINER ID   IMAGE                          COMMAND                  CREATED              STATUS              PORTS               NAMES
+d385f706d17f   mongo:3                        "docker-entrypoint.s…"   About a minute ago   Up About a minute   27017/tcp           todo_db.1.s2adepvkeu0zvgvr4zv8looid
+6baeaf8b3228   192.168.50.4:443/todo:latest   "/usr/local/bin/entr…"   2 minutes ago        Up 2 minutes        3000/tcp            todo_app.1.uczmthswg2xgnlccjpn3cutn0
+8b1ab4c0b593   192.168.50.4:443/todo:latest   "/usr/local/bin/entr…"   2 minutes ago        Up 2 minutes        3000/tcp            todo_app.3.adpprnou75oov3e1lbewe7so6
+```
+
+```bash
+root@vm3:~# docker ps
+CONTAINER ID        IMAGE                          COMMAND                  CREATED             STATUS              PORTS               NAMES
+d5eec77a1fa5        192.168.50.4:443/todo:latest   "/usr/local/bin/entr…"   13 seconds ago      Up 12 seconds       3000/tcp            todo_app.6.v2omr5jcm5rieeb7biek03n37
+0d417f7b4e6e        192.168.50.4:443/todo:latest   "/usr/local/bin/entr…"   13 seconds ago      Up 11 seconds       3000/tcp            todo_app.5.yonmr2h4dv3g8eaigxww2xy6y
+```
+
+```bash
+root@vm1:/vagrant/todo# docker service ps todo_app
+ID                  NAME                IMAGE                          NODE                DESIRED STATE       CURRENT STATE            ERROR               PORTS
+uczmthswg2xg        todo_app.1          192.168.50.4:443/todo:latest   vm2                 Running             Running 41 minutes ago
+9685t8c7p9jv        todo_app.2          192.168.50.4:443/todo:latest   vm1                 Running             Running 41 minutes ago
+adpprnou75oo        todo_app.3          192.168.50.4:443/todo:latest   vm2                 Running             Running 41 minutes ago
+br7402xmhw8y        todo_app.4          192.168.50.4:443/todo:latest   vm1                 Running             Running 41 minutes ago
+yonmr2h4dv3g        todo_app.5          192.168.50.4:443/todo:latest   vm3                 Running             Running 2 minutes ago
+v2omr5jcm5ri        todo_app.6          192.168.50.4:443/todo:latest   vm3                 Running             Running 2 minutes ago
+```
 
 
 
@@ -2947,6 +3100,7 @@ TODO
   * [Overview of Docker Compose CLI][docker-compose-cli]
 * [Starting containers automatically][docker-restart-policy]
 * [The Twelve-Factor App][12factor]
+* [Deploy a Registry Server][docker-registry]
 
 
 
@@ -2965,6 +3119,7 @@ TODO
 [docker-compose-install]: https://docs.docker.com/compose/install/
 [docker-ignore]: https://docs.docker.com/engine/reference/builder/#dockerignore-file
 [docker-restart-policy]: https://docs.docker.com/config/containers/start-containers-automatically/
+[docker-registry]: https://docs.docker.com/registry/deploying/
 [docker-security]: https://docs.docker.com/engine/security/security/
 [docker-storage]: https://docs.docker.com/storage/
 [docker-storage-bind]: https://docs.docker.com/storage/bind-mounts/

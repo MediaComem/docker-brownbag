@@ -1,0 +1,49 @@
+version: '3'
+
+services:
+
+  lb:
+    deploy:
+      placement:
+        constraints:
+          - node.labels.zone == dmz
+      restart_policy:
+        condition: on-failure
+        delay: 5s
+        window: 15s
+    depends_on:
+      - app
+    image: nginx:1.13-alpine
+    ports:
+      - "80:80"
+    volumes:
+      - /vagrant/todo/nginx-swarm.conf:/etc/nginx/nginx.conf:ro
+
+  app:
+    depends_on:
+      - db
+    deploy:
+      replicas: 6
+      restart_policy:
+        condition: on-failure
+        delay: 5s
+        window: 75s
+    environment:
+      DATABASE_URL: "mongodb://db:27017"
+    image: 192.168.50.4:443/todo
+
+  db:
+    deploy:
+      placement:
+        constraints:
+          - node.labels.type == storage
+      restart_policy:
+        condition: on-failure
+        delay: 5s
+        window: 15s
+    image: mongo:3
+    volumes:
+      - data:/data/db
+
+volumes:
+  data:

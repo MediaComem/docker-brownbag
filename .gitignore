@@ -1,2 +1,5 @@
+/*.log
+/.vagrant
 /node_modules
+/tmp
 /todo/node_modules
