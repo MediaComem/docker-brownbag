@@ -2704,7 +2704,7 @@ These are the requirements for all machines:
 
 * Each machine must be able to reach the other two on the following ports: 2376, 2377, 7946 and
   4789.
-* [Docker][docker] must be installed and running.
+* [Docker][docker-ce] must be installed and running.
 * A copy of the self-signed certificate (the `domain.crt` file) must be stored under
   `/etc/docker/certs.d/192.168.50.4:443/ca.crt`.
 
@@ -2712,7 +2712,7 @@ Additionally, these are the requirements for the first machine, `vm1`, which wil
 manager:
 
 * It must be reachable from your test machine (where you are running your browser).
-* [Docker Compose][docker] must be installed.
+* [Docker Compose][docker-compose-install] must be installed.
 * It must have a clone of this repository. In all further examples, it is stored under `/vagrant`,
   as that is where it is automatically mounted when doing `vagrant up`. Adapt the instructions if
   you choose another path.
