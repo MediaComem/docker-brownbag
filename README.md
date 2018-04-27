@@ -67,6 +67,8 @@ context-dependent, and will differ on your machine.
 
 <!-- END doctoc generated TOC please keep comment here to allow auto update -->
 
+<br><br><br><br><br>
+
 
 
 
@@ -82,6 +84,10 @@ context-dependent, and will differ on your machine.
 
 [Back to top](#readme)
 
+---
+
+<br><br><br><br><br>
+
 
 
 
@@ -94,6 +100,10 @@ infrastructure while rationalizing an **increasingly diverse portfolio of clouds
 application architectures**.  Docker enables true **independence between applications and
 infrastructure** and developers and IT ops to unlock their potential and creates a model for better
 collaboration and innovation.
+
+[Back to top](#readme)
+
+<br>
 
 ### What is a container?
 
@@ -137,11 +147,17 @@ images are typically tens of MBs in size), and start almost instantly.
 
 [Back to top](#readme)
 
+---
+
+<br><br><br><br><br>
+
 
 
 
 
 ## Containers & images
+
+<br>
 
 ### Make sure Docker is working
 
@@ -179,6 +195,8 @@ For more examples and ideas, visit:
 ```
 
 [Back to top](#readme)
+
+<br>
 
 ### Run a container from an image
 
@@ -268,6 +286,8 @@ CONTAINER ID        IMAGE               COMMAND                  CREATED        
 
 [Back to top](#readme)
 
+<br>
+
 ### Container isolation
 
 Docker containers are very similar to [LXC containers][lxc] which provide many
@@ -289,6 +309,8 @@ Docker containers are very similar to [LXC containers][lxc] which provide many
   later.
 
 [Back to top](#readme)
+
+<br>
 
 ### Run multiple commands in a container
 
@@ -403,6 +425,8 @@ f6b9fa680789        ubuntu              "bash"              13 minutes ago      
 ```
 
 [Back to top](#readme)
+
+<br>
 
 ### Commit a container's state to an image manually
 
@@ -586,6 +610,8 @@ You attempt things that you do not even plan because of your extreme stupidity.
 
 [Back to top](#readme)
 
+<br>
+
 ### Run containers in the background
 
 Until now we've only run containers **in the foreground**, meaning that they take control of our
@@ -611,6 +637,8 @@ CONTAINER ID        IMAGE               COMMAND             CREATED             
 ```
 
 [Back to top](#readme)
+
+<br>
 
 ### Access container logs
 
@@ -652,6 +680,8 @@ It is Mon Apr 23 09:13:36 UTC 2018
 Use Ctrl-C to stop following the logs.
 
 [Back to top](#readme)
+
+<br>
 
 ### Stop and restart containers
 
@@ -720,6 +750,8 @@ CONTAINER ID        IMAGE               COMMAND             CREATED             
 
 [Back to top](#readme)
 
+<br>
+
 ### Run multiple containers
 
 Since containers have isolated processes, networks and file systems, you can of course run more than
@@ -766,6 +798,8 @@ It is Mon Apr 23 09:40:36 UTC 2018
 ```
 
 [Back to top](#readme)
+
+<br>
 
 ### Image layers
 
@@ -855,6 +889,8 @@ made based on the `fortune-clock:1.0` image:
 
 [Back to top](#readme)
 
+<br>
+
 #### The top writable layer of containers
 
 When you create a new container, you add a new **writable layer** on top of the image's underlying
@@ -878,6 +914,8 @@ Multiple containers can therefore use the same read-only image layers, as they o
 writable top layer.
 
 [Back to top](#readme)
+
+<br>
 
 #### Total image size
 
@@ -968,6 +1006,10 @@ What we've just learned about layers has several implications:
 
 [Back to top](#readme)
 
+---
+
+<br><br><br><br><br>
+
 
 
 
@@ -981,6 +1023,10 @@ Docker can build images automatically by reading the instructions from a [Docker
 Dockerfile is a text document that contains all the commands a user could call on the command line
 to assemble an image. Using the `docker build` command, users can create an automated build that
 executes several command line instructions in succession.
+
+[Back to top](#readme)
+
+<br><br><br>
 
 ### The `docker build` command
 
@@ -1002,6 +1048,8 @@ To ignore some files in the build context, use a [`.dockerignore` file][docker-i
 
 [Back to top](#readme)
 
+<br>
+
 ### Format
 
 The format of a Dockerfile is:
@@ -1018,6 +1066,8 @@ used. For example, the `FROM` instruction corresponds to the `<image>` argument 
 command, and specifies what base image to use.
 
 [Back to top](#readme)
+
+<br>
 
 ### Build an image from a Dockerfile
 
@@ -1160,6 +1210,8 @@ instructions and 1 `COPY` instruction in the Dockerfile we used, there are 5 add
 
 [Back to top](#readme)
 
+<br>
+
 ### Build cache
 
 Re-run the same build command:
@@ -1248,6 +1300,8 @@ See [Squashing Image Layers][squashing-layers] for tips on how to minimize build
 of layers.
 
 [Back to top](#readme)
+
+<br>
 
 ### A Dockerfile for a Node.js application
 
@@ -1360,6 +1414,10 @@ Dockerfiles.
 
 [Back to top](#readme)
 
+---
+
+<br><br><br><br><br>
+
 
 
 
@@ -1398,6 +1456,8 @@ This will make it easy to, for example, horizontally scale our application by ru
 Node.js application container, while keeping only 1 MongoDB server container.
 
 [Back to top](#readme)
+
+<br>
 
 ### Exposing container ports on the host machine
 
@@ -1483,6 +1543,8 @@ themselves cannot reach your host machine's ports.
 
 [Back to top](#readme)
 
+<br>
+
 ### Docker networks
 
 You can create **networks** to break the isolation between containers and connect them together.
@@ -1529,6 +1591,8 @@ cd79f5b6d678        none                null                local
 ```
 
 [Back to top](#readme)
+
+<br>
 
 #### Running a container in a network
 
@@ -1636,6 +1700,10 @@ requests.
 
 [Back to top](#readme)
 
+---
+
+<br><br><br><br><br>
+
 
 
 
@@ -1715,6 +1783,8 @@ Let's see how to [manage data in Docker][docker-storage]. There are 3 solutions:
 We'll talk about the first 2.
 
 [Back to top](#readme)
+
+<br>
 
 ### Bind mounts
 
@@ -1818,6 +1888,8 @@ initializing from scratch, the MongoDB server loaded the existing data (it's as 
 restarted). Your to-do notes are still here!
 
 [Back to top](#readme)
+
+<br>
 
 ### Volumes
 
@@ -1924,6 +1996,10 @@ storing it on external services (e.g. cloud providers), transparently encrypting
 
 [Back to top](#readme)
 
+---
+
+<br><br><br><br><br>
+
 
 
 
@@ -2015,6 +2091,8 @@ Run `exit` once you're done:
 
 [Back to top](#readme)
 
+<br>
+
 ### Ephemeral containers
 
 You could make changes to a running container using `docker exec`, but that's considered a bad
@@ -2030,6 +2108,10 @@ methodology][12factor] to get a feel for the motivations of running containers i
 fashion.
 
 [Back to top](#readme)
+
+---
+
+<br><br><br><br><br>
 
 
 
@@ -2063,6 +2145,8 @@ Compose has commands for managing the whole lifecycle of your application:
 * Run a one-off command on a service.
 
 [Back to top](#readme)
+
+<br>
 
 ### The `docker-compose.yml` file
 
@@ -2188,6 +2272,8 @@ volumes:
 
 [Back to top](#readme)
 
+<br>
+
 ### Running Docker Compose services
 
 To redo everything we have done so far manually, this time with Docker Compose, all you have to do
@@ -2290,6 +2376,8 @@ And [much more][docker-compose-cli].
 
 [Back to top](#readme)
 
+<br>
+
 ### Rebuilding Docker Compose services
 
 If you attempt to run `docker-compose up` again with the `--build` option, note that it does
@@ -2333,6 +2421,8 @@ recreated the `todo_app_1` container. But it still left `todo_db_1` intact since
 affect the database, so no recreation was necessary.
 
 [Back to top](#readme)
+
+<br>
 
 ### Starting containers automatically
 
@@ -2385,6 +2475,8 @@ The available restart policies are:
 * `always` - Always restart the container if it stops.
 
 [Back to top](#readme)
+
+<br>
 
 ### Horizontal scaling
 
@@ -2512,6 +2604,10 @@ There are several solutions to this problem. Here's two:
   you. You'll see in action if you [read on](#docker-swarm).
 
 [Back to top](#readme)
+
+---
+
+<br><br><br><br><br>
 
 
 
@@ -2676,11 +2772,19 @@ v2omr5jcm5ri        todo_app.6          192.168.50.4:443/todo:latest   vm3      
 
 [Back to top](#readme)
 
+---
+
+<br><br><br><br><br>
+
 
 
 
 
 ## Appendices
+
+<br><br><br>
+
+
 
 ### Squashing image layers
 
@@ -2783,6 +2887,8 @@ from the cache. Then the `COPY` instruction is executed without the cache, as ex
 
 [Back to top](#readme)
 
+<br>
+
 #### Using the `--squash` option
 
 Another way to squash layers is to add the `--squash` option to the build command:
@@ -2837,6 +2943,12 @@ Note that the `--squash` option is an experimental feature, and should not be co
 
 [Back to top](#readme)
 
+---
+
+<br><br><br>
+
+
+
 ### Dockerfile tips
 
 In the `todo` directory, you will find a `Dockerfile.full` file which is a more complete Dockerfile
@@ -2873,6 +2985,8 @@ Let's see what all of this means.
 
 [Back to top](#readme)
 
+<br>
+
 #### Using smaller base images
 
 Many popular Docker images these days have an Alpine variant. This means that the image is based on
@@ -2900,6 +3014,8 @@ if you are unfamiliar).
 
 [Back to top](#readme)
 
+<br>
+
 #### Labeling images
 
 Labels are metadata attached to images and containers. They can be used to influence the behavior of
@@ -2923,6 +3039,8 @@ docker ps -f label=foo=bar
 
 [Back to top](#readme)
 
+<br>
+
 #### Environment variables
 
 The `ENV` instruction allows you to set environment variables. Many applications change their
@@ -2939,6 +3057,8 @@ ENV NODE_ENV=production \
 ```
 
 [Back to top](#readme)
+
+<br>
 
 #### Non-root users
 
@@ -2977,6 +3097,8 @@ flag. This is because files copied with a `COPY` instruction are always owned by
 regardless of the `USER` instruction, unless the `--chown` (change ownership) flag is used.
 
 [Back to top](#readme)
+
+<br>
 
 #### Speeding up builds
 
@@ -3028,6 +3150,8 @@ at build time (unless you modify the `package.json` or `package-lock.json` files
 
 [Back to top](#readme)
 
+<br>
+
 #### Documenting exposed ports
 
 The `EXPOSE` instruction informs Docker that the container listens on the specified network ports at
@@ -3044,6 +3168,8 @@ option on `docker run` to publish and map one or more ports, or the `-P` option 
 exposed ports and map them to high-order ports.
 
 [Back to top](#readme)
+
+<br>
 
 #### Using an entrypoint script
 
@@ -3090,6 +3216,8 @@ CMD [ "npm", "start" ]
 The full command executed by our container will therefore be `/usr/local/bin/entrypoint.sh npm start`.
 
 [Back to top](#readme)
+
+<br>
 
 ##### Waiting for other containers
 
@@ -3149,11 +3277,21 @@ connection and connection loss problems.
 
 [Back to top](#readme)
 
+---
+
+<br><br><br>
+
+
+
 ### Multi-process containers
 
 TODO
 
 [Back to top](#readme)
+
+---
+
+<br><br><br><br><br>
 
 
 
@@ -3169,6 +3307,12 @@ TODO
 * appendix: multi-process container (s6)
 * add summary for each section
 * developing with Docker
+
+[Back to top](#readme)
+
+---
+
+<br><br><br><br><br>
 
 
 
