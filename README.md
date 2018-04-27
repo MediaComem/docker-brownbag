@@ -49,6 +49,8 @@ context-dependent, and will differ on your machine.
   - [Starting containers automatically](#starting-containers-automatically)
   - [Horizontal scaling](#horizontal-scaling)
 - [Docker Swarm](#docker-swarm)
+  - [Setup](#setup)
+  - [Create a swarm](#create-a-swarm)
 - [Appendices](#appendices)
   - [Squashing image layers](#squashing-image-layers)
     - [Using the `--squash` option](#using-the---squash-option)
