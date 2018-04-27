@@ -77,10 +77,15 @@ context-dependent, and will differ on your machine.
 
 * [Docker Community Edition (CE)][docker-ce] (the latest version is `18.03.0-ce` at the time of
   writing).
-* [Docker Compose][docker-compose-install] (installed by default if you're using Docker for Mac or
-  Docker for Windows).
+* [Docker Compose][docker-compose-install] (installed with Docker by default if you're using Docker
+  for Mac or Docker for Windows).
 * A UNIX command line (on Windows, use [Git Bash][git-bash] or the [Windows Subsystem for
   Linux][wsl]).
+
+Optionally, to quickly set up the infrastructure for the [Docker Swarm](#docker-swarm) chapter:
+
+* [Vagrant][vagrant] 2+
+* [VirtualBox][virtualbox] 5+
 
 [Back to top](#readme)
 
@@ -2615,6 +2620,109 @@ There are several solutions to this problem. Here's two:
 
 ## Docker Swarm
 
+Docker comes with [SwarmKit][swarmkit], a cluster management and orchestration tool.
+
+![Docker Swarm](images/swarm.png)
+
+A **swarm** consists of **multiple Docker nodes**, i.e. separate computers or cloud servers, which
+run in swarm mode and act as **managers** (to manage membership and delegation) and/or **workers**
+(which run swarm services).
+
+A **service** is a definition of the tasks to execute on the manager or worker nodes. It is the
+central structure of the swarm system and the primary root of user interaction with the swarm.  When
+you create a service, you specify **which container image to use** and **which commands** to execute
+inside running containers.
+
+When you define a service, you describe its optimal state (number of replicas, network and storage
+resources available to it, ports the service exposes to the outside world, and more). Docker works
+to maintain that desired state. For instance, if a worker node becomes unavailable, Docker schedules
+that node's tasks on other nodes.
+
+A **task** carries a Docker **container** and the **commands** to run inside the container. It is
+the **atomic scheduling unit** of swarm. Manager nodes assign tasks to worker nodes according to the
+number of **replicas** set in the service scale.
+
+The advantages of Docker Swarm over standalone containers and Docker Compose are:
+
+* SwarmKit uses the [Raft Consensus Algorithm][raft] in order to coordinate and **does not rely on a
+  single point of failure** to perform decisions.
+* Node communication and membership within a Swarm are **secure out of the box**. SwarmKit uses
+  mutual TLS for node authentication, role authorization and transport encryption, automating both
+  certificate issuance and rotation.
+* SwarmKit is **operationally simple** and minimizes infrastructure dependencies. It does not need
+  an external database to operate.
+* You can modify a service's configuration, including the networks and volumes it is connected to,
+  **without the need to manually restart the service**. Docker will update the configuration, stop
+  the service tasks with the out of date configuration, and create new ones matching the desired
+  configuration.
+* The swarm manager uses **ingress load balancing** to expose the services you want to make
+  available externally to the swarm. Once you configure a published port for the service, external
+  components, such as cloud load balancers, can access the service on the published port of any node
+  in the cluster whether or not the node is currently running the task for the service. All nodes in
+  the swarm route ingress connections to a running task instance.
+* Swarm mode has an **internal DNS component** that automatically assigns each service in the swarm
+  a DNS entry. The swarm manager uses internal load balancing to distribute requests among services
+  within the cluster based upon the DNS name of the service.
+
+[Back to top](#readme)
+
+<br>
+
+### Setup
+
+If you have [Vagrant][vagrant] and [VirtualBox][virtualbox] installed, you can easily set up the
+infrastructure required for the next steps by running the following command in this repository:
+
+```bash
+$> vagrant up
+```
+
+Grab a coffee, it will take a while. Once it's done, you can skip the rest of this section and move
+on to [creating a swarm](#create-a-swarm).
+
+**If you want to set up the infrastructure yourself instead of using Vagrant**, you need 3 virtual
+machines running the Ubuntu Xenial operating system:
+
+| Hostname | IP address     |
+| :---     | :---           |
+| `vm1`    | `192.168.50.4` |
+| `vm2`    | `192.168.50.5` |
+| `vm3`    | `192.168.50.6` |
+
+You must generate a self-signed certificate for `192.168.50.4` to set up TLS for a Docker registry.
+You may do so from one of the virtual machines with the following command:
+
+```bash
+openssl req -newkey rsa:4096 -nodes -sha256 -keyout domain.key -x509 -days 365 -out domain.crt -subj "/C=US/ST=New York/L=New York City/O=Acme/OU=IT/CN=example.com" -reqexts SAN -extensions SAN -config <(cat /etc/ssl/openssl.cnf <(printf "\n[SAN]\nsubjectAltName=IP:192.168.50.4"))
+```
+
+This command will create a `domain.key` and `domain.crt` file in the current directory.
+
+These are the requirements for all machines:
+
+* Each machine must be able to reach the other two on the following ports: 2376, 2377, 7946 and
+  4789.
+* [Docker][docker] must be installed and running.
+* A copy of the self-signed certificate (the `domain.crt` file) must be stored under
+  `/etc/docker/certs.d/192.168.50.4:443/ca.crt`.
+
+Additionally, these are the requirements for the first machine, `vm1`, which will be the Swarm
+manager:
+
+* It must be reachable from your test machine (where you are running your browser).
+* [Docker Compose][docker] must be installed.
+* It must have a clone of this repository. In all further examples, it is stored under `/vagrant`,
+  as that is where it is automatically mounted when doing `vagrant up`. Adapt the instructions if
+  you choose another path.
+* The `domain.key` and `domain.crt` files must be under the `tmp` directory in the repository (e.g.
+  `/vagrant/tmp`).
+
+[Back to top](#readme)
+
+<br>
+
+### Create a swarm
+
 ```bash
 root@vm1:~# docker swarm init --advertise-addr 192.168.50.4
 Swarm initialized: current node (s9klmcfzhn0j0qww2qjv2hkrs) is now a manager.
@@ -3174,7 +3282,7 @@ exposed ports and map them to high-order ports.
 #### Using an entrypoint script
 
 (It's recommended that you finish reading the [Docker Compose](#docker-compose) section to better
-understand this tip, especially the [Waiting for other containers](#waiting-for-other-containers)
+understand this tip, especially the [Waiting for other containers][dockerfile-tips-waiting]
 subsection.)
 
 We've seen that the `CMD` instruction defines the default command to run in the container, but
@@ -3321,7 +3429,7 @@ TODO
 ## References
 
 * [What is Docker?][what-is-docker]
-* [What is a Container?][what-is-a-container]
+* [What is a Container?][what-is-container]
 * [Docker Security][docker-security]
 * [Dockerfile Reference][dockerfile]
   * [Best Practices for Writing Dockerfiles][dockerfile-best-practices]
@@ -3339,6 +3447,10 @@ TODO
 * [Starting containers automatically][docker-restart-policy]
 * [The Twelve-Factor App][12factor]
 * [Deploy a Registry Server][docker-registry]
+* [Docker Swarm][docker-swarm]
+  * [SwarmKit][swarmkit]
+  * [Docker Swarm Key Concepts][docker-swarm-concepts]
+  * [Getting Started with Swarm Mode][docker-swarm-getting-started]
 
 [Back to top](#readme)
 
@@ -3360,6 +3472,7 @@ TODO
 [docker-compose-file]: https://docs.docker.com/compose/compose-file/
 [docker-compose-install]: https://docs.docker.com/compose/install/
 [docker-ignore]: https://docs.docker.com/engine/reference/builder/#dockerignore-file
+[docker-networking]: https://docs.docker.com/network/
 [docker-restart-policy]: https://docs.docker.com/config/containers/start-containers-automatically/
 [docker-registry]: https://docs.docker.com/registry/deploying/
 [docker-security]: https://docs.docker.com/engine/security/security/
@@ -3370,10 +3483,12 @@ TODO
 [docker-storage-volume-drivers]: https://docs.docker.com/storage/volumes/#use-a-volume-driver
 [docker-storage-volumes]: https://docs.docker.com/storage/volumes/
 [docker-swarm]: https://docs.docker.com/engine/swarm/
+[docker-swarm-concepts]: https://docs.docker.com/engine/swarm/key-concepts/
+[docker-swarm-getting-started]: https://docs.docker.com/engine/swarm/swarm-tutorial/
 [dockerfile]: https://docs.docker.com/engine/reference/builder/
 [dockerfile-best-practices]: https://docs.docker.com/develop/develop-images/dockerfile_best-practices/
-[docker-networking]: https://docs.docker.com/network/
 [dockerfile-tips]: #dockerfile-tips
+[dockerfile-tips-waiting]: #waiting-for-other-containers
 [express]: http://expressjs.com
 [fortune]: https://en.wikipedia.org/wiki/Fortune_(Unix)
 [git-bash]: https://git-scm.com/downloads
@@ -3392,11 +3507,15 @@ TODO
 [nginx]: https://www.nginx.com
 [nginx-lb]: http://nginx.org/en/docs/http/load_balancing.html
 [node]: https://nodejs.org/en/
+[raft]: https://raft.github.io
 [serf]: https://www.serf.io
 [service-discovery]: https://en.wikipedia.org/wiki/Service_discovery
 [squashing-layers]: #squashing-image-layers
+[swarmkit]: https://github.com/docker/swarmkit
 [union-fs]: https://en.wikipedia.org/wiki/UnionFS
-[what-is-a-container]: https://www.docker.com/what-container
+[vagrant]: https://www.vagrantup.com
+[virtualbox]: https://www.virtualbox.org
+[what-is-container]: https://www.docker.com/what-container
 [what-is-docker]: https://www.docker.com/what-docker
 [wsl]: https://docs.microsoft.com/en-us/windows/wsl/install-win10
 [yaml]: http://yaml.org
