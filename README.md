@@ -1,10 +1,10 @@
 # Docker Brown Bag: From Hello World to Swarm
 
-This document is a step-by-step guide that you can follow to learn the basics of Docker, from
-running a hello world container to running a multi-machine swarm. It's a condensed version of some
-of Docker's own documentation and other articles (see the [references](#references) at the bottom).
+You can follow this tutorial to learn the basics of Docker, from running a hello world container to
+running a multi-machine swarm. It's a condensed version of some of Docker's own documentation and
+other articles (see the [references](#references) at the bottom).
 
-Note: many names and IDs shown in sample command outputs in this guide are randomly generated or
+Note: some names and IDs shown in sample command outputs are randomly generated or
 context-dependent, and will differ on your machine.
 
 <!-- START doctoc generated TOC please keep comment here to allow auto update -->
@@ -80,6 +80,8 @@ context-dependent, and will differ on your machine.
 * A UNIX command line (on Windows, use [Git Bash][git-bash] or the [Windows Subsystem for
   Linux][wsl]).
 
+[Back to top](#readme)
+
 
 
 
@@ -133,6 +135,8 @@ Multiple containers can run on the same machine and share the OS kernel with oth
 running as isolated processes in user space. Containers take up less space than VMs (container
 images are typically tens of MBs in size), and start almost instantly.
 
+[Back to top](#readme)
+
 
 
 
@@ -173,6 +177,8 @@ Share images, automate workflows, and more with a free Docker ID:
 For more examples and ideas, visit:
  https://docs.docker.com/engine/userguide/
 ```
+
+[Back to top](#readme)
 
 ### Run a container from an image
 
@@ -260,6 +266,8 @@ $> docker ps -a
 CONTAINER ID        IMAGE               COMMAND                  CREATED             STATUS                      PORTS               NAMES
 ```
 
+[Back to top](#readme)
+
 ### Container isolation
 
 Docker containers are very similar to [LXC containers][lxc] which provide many
@@ -279,6 +287,8 @@ Docker containers are very similar to [LXC containers][lxc] which provide many
   another container. Of course, containers can interact with each other through their respective
   network interface, just like they can interact with external hosts. We will see examples of this
   later.
+
+[Back to top](#readme)
 
 ### Run multiple commands in a container
 
@@ -391,6 +401,8 @@ Since the Bash process has exited, the container has stopped:
 CONTAINER ID        IMAGE               COMMAND             CREATED             STATUS                       PORTS               NAMES
 f6b9fa680789        ubuntu              "bash"              13 minutes ago      Exited (130) 4 seconds ago                       goofy_shirley
 ```
+
+[Back to top](#readme)
 
 ### Commit a container's state to an image manually
 
@@ -572,6 +584,8 @@ It is Mon Apr 23 09:08:04 UTC 2018
 You attempt things that you do not even plan because of your extreme stupidity.
 ```
 
+[Back to top](#readme)
+
 ### Run containers in the background
 
 Until now we've only run containers **in the foreground**, meaning that they take control of our
@@ -595,6 +609,8 @@ $> docker ps
 CONTAINER ID        IMAGE               COMMAND             CREATED             STATUS              PORTS               NAMES
 06eb72c21805        fortune-clock:2.0   "clock.sh"          6 seconds ago       Up 9 seconds                            clock
 ```
+
+[Back to top](#readme)
 
 ### Access container logs
 
@@ -634,6 +650,8 @@ It is Mon Apr 23 09:13:36 UTC 2018
 ```
 
 Use Ctrl-C to stop following the logs.
+
+[Back to top](#readme)
 
 ### Stop and restart containers
 
@@ -700,6 +718,8 @@ $> docker ps
 CONTAINER ID        IMAGE               COMMAND             CREATED             STATUS              PORTS               NAMES
 ```
 
+[Back to top](#readme)
+
 ### Run multiple containers
 
 Since containers have isolated processes, networks and file systems, you can of course run more than
@@ -744,6 +764,8 @@ It is Mon Apr 23 09:40:36 UTC 2018
                 ||     ||
 ...
 ```
+
+[Back to top](#readme)
 
 ### Image layers
 
@@ -831,6 +853,8 @@ made based on the `fortune-clock:1.0` image:
 * Install the `cowsay` package with `apt-get install`
 * Overwrite the `/usr/local/bin/clock.sh` script
 
+[Back to top](#readme)
+
 #### The top writable layer of containers
 
 When you create a new container, you add a new **writable layer** on top of the image's underlying
@@ -852,6 +876,8 @@ make it work:
 
 Multiple containers can therefore use the same read-only image layers, as they only modify their own
 writable top layer.
+
+[Back to top](#readme)
 
 #### Total image size
 
@@ -940,6 +966,8 @@ What we've just learned about layers has several implications:
   The `hello-world` image takes up an additional 1.85kB on your file system, since it has no layers
   in common with any of the other images.
 
+[Back to top](#readme)
+
 
 
 
@@ -972,6 +1000,8 @@ transfer the entire contents of your hard drive to the Docker daemon.
 To ignore some files in the build context, use a [`.dockerignore` file][docker-ignore] (similar to a
 `.gitignore` file).
 
+[Back to top](#readme)
+
 ### Format
 
 The format of a Dockerfile is:
@@ -986,6 +1016,8 @@ You can find all available instructions, such as `FROM` and `RUN`, in the [Docke
 reference][dockerfile]. Many correspond to arguments or options of the Docker commands that we've
 used. For example, the `FROM` instruction corresponds to the `<image>` argument of the `docker run`
 command, and specifies what base image to use.
+
+[Back to top](#readme)
 
 ### Build an image from a Dockerfile
 
@@ -1126,6 +1158,8 @@ are the `ubuntu` image's base layers. The last 5 layers, however, are new.
 Basically, Docker created a layer for **each instruction in the Dockerfile**. Since we have 4 `RUN`
 instructions and 1 `COPY` instruction in the Dockerfile we used, there are 5 additional layers.
 
+[Back to top](#readme)
+
 ### Build cache
 
 Re-run the same build command:
@@ -1212,6 +1246,8 @@ which they are based has changed. Therefore, the last `RUN` instruction also doe
 
 See [Squashing Image Layers][squashing-layers] for tips on how to minimize build time and the number
 of layers.
+
+[Back to top](#readme)
 
 ### A Dockerfile for a Node.js application
 
@@ -1322,6 +1358,8 @@ We will run a database in the next section.
 See [Dockerfile Tips][dockerfile-tips] for more information and good practices concerning
 Dockerfiles.
 
+[Back to top](#readme)
+
 
 
 
@@ -1358,6 +1396,8 @@ For our Node.js application, we will therefore run 2 containers:
 
 This will make it easy to, for example, horizontally scale our application by running more than 1
 Node.js application container, while keeping only 1 MongoDB server container.
+
+[Back to top](#readme)
 
 ### Exposing container ports on the host machine
 
@@ -1441,6 +1481,8 @@ This works, but we can't use this method to connect our Node.js application cont
 server container. You can reach any container through the host machine, but the containers
 themselves cannot reach your host machine's ports.
 
+[Back to top](#readme)
+
 ### Docker networks
 
 You can create **networks** to break the isolation between containers and connect them together.
@@ -1485,6 +1527,8 @@ c7777321c9e3        host                host                local
 cd79f5b6d678        none                null                local
 15109ea2a697        todo                bridge              local
 ```
+
+[Back to top](#readme)
 
 #### Running a container in a network
 
@@ -1590,6 +1634,8 @@ The application should be working and accessible at
 Play with it and use `docker logs app` to see that the Node.js application is indeed processing your
 requests.
 
+[Back to top](#readme)
+
 
 
 
@@ -1667,6 +1713,8 @@ Let's see how to [manage data in Docker][docker-storage]. There are 3 solutions:
 ![Docker storage types](images/docker-storage.png)
 
 We'll talk about the first 2.
+
+[Back to top](#readme)
 
 ### Bind mounts
 
@@ -1768,6 +1816,8 @@ app
 This time, the persisted MongoDB server's data was mounted into the new container. Instead of
 initializing from scratch, the MongoDB server loaded the existing data (it's as if it was simply
 restarted). Your to-do notes are still here!
+
+[Back to top](#readme)
 
 ### Volumes
 
@@ -1872,6 +1922,8 @@ is sometimes used. In that case, it exists on the virtual machine's file system.
 [Volume drivers][docker-storage-volume-drivers] allow very flexible management of your data, such as
 storing it on external services (e.g. cloud providers), transparently encrypting content, etc.
 
+[Back to top](#readme)
+
 
 
 
@@ -1961,6 +2013,8 @@ Run `exit` once you're done:
 /usr/src/app $ exit
 ```
 
+[Back to top](#readme)
+
 ### Ephemeral containers
 
 You could make changes to a running container using `docker exec`, but that's considered a bad
@@ -1974,6 +2028,8 @@ container once it's started.
 You may want to take a look at the [Processes][12factor-processes] section of the [12 Factor app
 methodology][12factor] to get a feel for the motivations of running containers in such a stateless
 fashion.
+
+[Back to top](#readme)
 
 
 
@@ -2005,6 +2061,8 @@ Compose has commands for managing the whole lifecycle of your application:
 * View the status of running services.
 * Stream the log output of running services.
 * Run a one-off command on a service.
+
+[Back to top](#readme)
 
 ### The `docker-compose.yml` file
 
@@ -2128,6 +2186,8 @@ volumes:
   data:
 ```
 
+[Back to top](#readme)
+
 ### Running Docker Compose services
 
 To redo everything we have done so far manually, this time with Docker Compose, all you have to do
@@ -2228,6 +2288,8 @@ app_1  | GET /todos 304 16.767 ms - -
 
 And [much more][docker-compose-cli].
 
+[Back to top](#readme)
+
 ### Rebuilding Docker Compose services
 
 If you attempt to run `docker-compose up` again with the `--build` option, note that it does
@@ -2269,6 +2331,8 @@ Recreating todo_app_1 ... done
 As expected, the build cache was invalidated since the application changed. Docker Compose therefore
 recreated the `todo_app_1` container. But it still left `todo_db_1` intact since the change did not
 affect the database, so no recreation was necessary.
+
+[Back to top](#readme)
 
 ### Starting containers automatically
 
@@ -2319,6 +2383,8 @@ The available restart policies are:
 * `unless-stopped` - Restart the container unless it is explicitly stopped or Docker itself is
   stopped or restarted.
 * `always` - Always restart the container if it stops.
+
+[Back to top](#readme)
 
 ### Horizontal scaling
 
@@ -2444,6 +2510,8 @@ There are several solutions to this problem. Here's two:
   when containers are started or stopped.
 * Use [Docker in swarm mode][docker-swarm], because it can manage services and load balancing for
   you. You'll see in action if you [read on](#docker-swarm).
+
+[Back to top](#readme)
 
 
 
@@ -2606,6 +2674,8 @@ yonmr2h4dv3g        todo_app.5          192.168.50.4:443/todo:latest   vm3      
 v2omr5jcm5ri        todo_app.6          192.168.50.4:443/todo:latest   vm3                 Running             Running 2 minutes ago
 ```
 
+[Back to top](#readme)
+
 
 
 
@@ -2711,6 +2781,8 @@ Successfully tagged fortune-clock:3.0
 As you can see, the entire `RUN` instruction is cached again, but only 1 layer had to be retrieved
 from the cache. Then the `COPY` instruction is executed without the cache, as expected.
 
+[Back to top](#readme)
+
 #### Using the `--squash` option
 
 Another way to squash layers is to add the `--squash` option to the build command:
@@ -2763,6 +2835,8 @@ same content.
 
 Note that the `--squash` option is an experimental feature, and should not be considered stable.
 
+[Back to top](#readme)
+
 ### Dockerfile tips
 
 In the `todo` directory, you will find a `Dockerfile.full` file which is a more complete Dockerfile
@@ -2797,6 +2871,8 @@ CMD [ "npm", "start" ]
 
 Let's see what all of this means.
 
+[Back to top](#readme)
+
 #### Using smaller base images
 
 Many popular Docker images these days have an Alpine variant. This means that the image is based on
@@ -2822,6 +2898,8 @@ included in Alpine-based images. Using this image as a base, add the things you 
 Dockerfile (see the [alpine image description][hub-alpine] for examples of how to install packages
 if you are unfamiliar).
 
+[Back to top](#readme)
+
 #### Labeling images
 
 Labels are metadata attached to images and containers. They can be used to influence the behavior of
@@ -2843,6 +2921,8 @@ You may also filter containers by label. For example, to see all running contain
 docker ps -f label=foo=bar
 ```
 
+[Back to top](#readme)
+
 #### Environment variables
 
 The `ENV` instruction allows you to set environment variables. Many applications change their
@@ -2857,6 +2937,8 @@ explicitly set the port rather than relying on the default value, so we set both
 ENV NODE_ENV=production \
     PORT=3000
 ```
+
+[Back to top](#readme)
 
 #### Non-root users
 
@@ -2893,6 +2975,8 @@ USER todo:todo
 As you will see, some of the next `COPY` commands in the Dockerfile use the `--chown=todo:todo`
 flag. This is because files copied with a `COPY` instruction are always owned by the root user,
 regardless of the `USER` instruction, unless the `--chown` (change ownership) flag is used.
+
+[Back to top](#readme)
 
 #### Speeding up builds
 
@@ -2942,6 +3026,8 @@ Now, if any file in your application changes, the cache of further instructions 
 but since the `RUN npm install` instruction comes before, it will remain in the cache and be skipped
 at build time (unless you modify the `package.json` or `package-lock.json` files).
 
+[Back to top](#readme)
+
 #### Documenting exposed ports
 
 The `EXPOSE` instruction informs Docker that the container listens on the specified network ports at
@@ -2956,6 +3042,8 @@ between the person who builds the image and the person who runs the container, a
 intended to be published. To actually publish the port when running the container, use the `-p`
 option on `docker run` to publish and map one or more ports, or the `-P` option to publish all
 exposed ports and map them to high-order ports.
+
+[Back to top](#readme)
 
 #### Using an entrypoint script
 
@@ -3000,6 +3088,8 @@ CMD [ "npm", "start" ]
 ```
 
 The full command executed by our container will therefore be `/usr/local/bin/entrypoint.sh npm start`.
+
+[Back to top](#readme)
 
 ##### Waiting for other containers
 
@@ -3057,9 +3147,13 @@ lifetime, after it has started. The best practice would be to change your code t
 application resilient to connection loss at or after startup, which would solve both the initial
 connection and connection loss problems.
 
+[Back to top](#readme)
+
 ### Multi-process containers
 
 TODO
+
+[Back to top](#readme)
 
 
 
@@ -3101,6 +3195,10 @@ TODO
 * [Starting containers automatically][docker-restart-policy]
 * [The Twelve-Factor App][12factor]
 * [Deploy a Registry Server][docker-registry]
+
+[Back to top](#readme)
+
+
 
 
 
