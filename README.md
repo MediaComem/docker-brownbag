@@ -2213,10 +2213,10 @@ Let's go into more details, looking at the `app` service first:
 
 ```
 app:
+  image: docker-brownbag/todo
   build:
     context: .
     dockerfile: Dockerfile.full
-  image: todo
   depends_on:
     - db
   environment:
@@ -2451,10 +2451,10 @@ additional restart policy:
 
 ```
 app:
+  image: docker-brownbag/todo
   build:
     context: .
     dockerfile: Dockerfile.full
-  image: docker-brownbag/todo
   depends_on:
     - db
   environment:
@@ -2518,6 +2518,8 @@ Make the following changes to the `docker-compose.yml` in the `todo` directory:
 
   ```
   lb:
+    depends_on:
+      - app
     image: nginx:1.13-alpine
     ports:
       - "3000:80"
@@ -2679,8 +2681,9 @@ infrastructure required for the next steps by running the following command in t
 $> vagrant up
 ```
 
-Grab a coffee, it will take a while. Once it's done, you can skip the rest of this section and move
-on to [creating a swarm](#create-a-swarm).
+Grab a coffee, it will take a while. Once it's done, you should be able to connect to each virtual
+machine with the `vagrant ssh <name>` command, for example `vagrant ssh vm1`. You can then skip the
+rest of this section and move on to [creating a swarm](#create-a-swarm).
 
 **If you want to set up the infrastructure yourself instead of using Vagrant**, you need 3 virtual
 machines running the Ubuntu Xenial operating system:
@@ -2725,6 +2728,9 @@ manager:
 
 ### Create a swarm
 
+Connect to `vm1` as the root user. Run the following `docker swarm init` command to enable swarm
+mode on the Docker engine and create a swarm:
+
 ```bash
 root@vm1:~# docker swarm init --advertise-addr 192.168.50.4
 Swarm initialized: current node (s9klmcfzhn0j0qww2qjv2hkrs) is now a manager.
@@ -2736,28 +2742,55 @@ To add a worker to this swarm, run the following command:
 To add a manager to this swarm, run 'docker swarm join-token manager' and follow the instructions.
 ```
 
+As you can see from the output, this new swarm node has been designated a **manager node**, meaning
+that it can be used to control the swarm.
+
+You can list the nodes in the swarm with the `docker node ls` command:
+
 ```bash
 root@vm1:~# docker node ls
 ID                            HOSTNAME            STATUS              AVAILABILITY        MANAGER STATUS      ENGINE VERSION
 s9klmcfzhn0j0qww2qjv2hkrs *   vm1                 Ready               Active              Leader              18.03.0-ce
 ```
+
+Connect to `vm2` and have it join the swarm with the `docker swarm join` command that was printed
+when you created the swarm on `vm1`:
 
 ```bash
 root@vm2:~# docker swarm join --token SWMTKN-1-4m7la1jfwvsiycxoeky84ljag8gn3z1f6j15j1tyxgc7t34gfx-5h00wpxkbj6jc6dd4pt9m7mny 192.168.50.4:2377
 This node joined a swarm as a worker.
 ```
 
+Connect to `vm3` and do the same:
+
 ```bash
 root@vm3:~# docker swarm join --token SWMTKN-1-4m7la1jfwvsiycxoeky84ljag8gn3z1f6j15j1tyxgc7t34gfx-5h00wpxkbj6jc6dd4pt9m7mny 192.168.50.4:2377
 This node joined a swarm as a worker.
 ```
+
+Run the `docker node ls` command on `vm1` again (it must be run on a manager node), and you should
+see that all 3 nodes are part of the swarm:
 
 ```bash
 root@vm1:~# docker node ls
 ID                            HOSTNAME            STATUS              AVAILABILITY        MANAGER STATUS      ENGINE VERSION
 s9klmcfzhn0j0qww2qjv2hkrs *   vm1                 Ready               Active              Leader              18.03.0-ce
 tfeytcntwewcbk5wcywalxjzd     vm2                 Ready               Active                                  18.03.0-ce
+8a3ovnodft8h87na2ov9nophd     vm3                 Ready               Active                                  18.03.0-ce
 ```
+
+**Labels** can be applied to swarm nodes to help differentiate them when deploying containers.
+Let's add some labels to the nodes we created. Imagine the following infrastructure:
+
+* `vm1` is part of the organization's network DMZ and can be reached from the outside, so we'll add
+  a `zone` label to it with the value `dmz`. We'll want to deploy the load balancer since it's the
+  entrypoint to our infrastructure.
+* `vm2` is only accessible from the organization's internal network, so we'll add a `zone` label to
+  it with the value `lan`. Additionally, it has high-capacity hard drives optimized for high I/O
+  workloads, so we'll also add a `type` label with the `storage` value. We'll want to deploy the
+  database there since it's optimized for storage.
+* `vm3` is only accessible from the organization's internal network, so we'll also add a `zone`
+  label to it with the value `lan`. It has no other special properties.
 
 ```bash
 root@vm1:~# docker node update --label-add zone=dmz vm1
@@ -2770,6 +2803,33 @@ root@vm1:~# docker node update --label-add zone=lan vm3
 vm3
 ```
 
+[Back to top](#readme)
+
+<br>
+
+### Run a private registry
+
+A swarm service can be run from a Docker image, like a container or Docker Compose service, but it
+has the additional restriction that **the image must be available in a Docker registry**, such as
+the Docker hub.
+
+This is because, until now in this tutorial, we've run containers based on images that were
+available locally, either because they'd been pulled from the Docker hub, or because they'd been
+built on the machine where we were going to deploy them, and were therefore available locally.
+
+There are multiple nodes in a swarm, i.e. Docker Engines running on separate physical (or virtual)
+machines. This means that the images you build on one node is not available to the other nodes.
+Therefore, it must be pushed to a registry which is available to all the nodes before it can be
+deployed to the swarm.
+
+To run our to-do application, we have 2 options:
+
+* Publish its image to the Docker hub.
+* Run a private registry and publish the image there.
+
+We'll use the second solution in this tutorial. Thankfully, it's trivial to run a private registry,
+since it's available as an image on the Docker hub. Run the following command on `vm1`:
+
 ```bash
 root@vm1:~# docker run -d \
   --restart=always \
@@ -2780,6 +2840,7 @@ root@vm1:~# docker run -d \
   -e REGISTRY_HTTP_TLS_KEY=/certs/domain.key \
   -p 443:443 \
   registry:2
+
 Unable to find image 'registry:2' locally
 2: Pulling from library/registry
 81033e7c1d6a: Pull complete
@@ -2792,11 +2853,37 @@ Status: Downloaded newer image for registry:2
 1d8f7aa1b7795d3bdcce623ec174918a132ce9abf659d5199f737453ccd466a8
 ```
 
+(Note that the mounted volume, `REGISTRY_HTTP_TLS_CERTIFICATE` and `REGISTRY_HTTP_TLS_KEY` options
+are used to configure TLS for the registry. Adapt the paths as required if you set up the virtual
+machines and generated the certificate yourself instead of using Vagrant.)
+
+Run `docker ps` on `vm1` to check that the registry is running:
+
 ```bash
 root@vm1:~# docker ps
 CONTAINER ID        IMAGE               COMMAND                  CREATED             STATUS              PORTS                            NAMES
 1d8f7aa1b779        registry:2          "/entrypoint.sh /etc…"   45 seconds ago      Up 44 seconds       0.0.0.0:443->443/tcp, 5000/tcp   registry
 ```
+
+You now have a private Docker registry accessible at `https://192.168.50.4`!
+
+[Back to top](#readme)
+
+<br>
+
+#### Push an image to a private registry
+
+Which registry a Docker image belongs to is actually defined in the tag:
+
+* `ubuntu` - The official `ubuntu` image on the Docker hub.
+* `localhost:5000/ubuntu` - The `ubuntu` image on the Docker registry at `http://localhost:5000`.
+
+By including a host/port combination in the tag, you are specifying the registry where the image can
+be pulled from (or pushed to).
+
+Move to the `todo` directory of the repository on `vm1`, and run the following `docker build`
+command to build the image. Prepend `192.168.50.4:443` to the tag to indicate that it's part of our
+private registry:
 
 ```bash
 root@vm1:~# cd /vagrant/todo
@@ -2815,6 +2902,10 @@ Successfully built 073b4de87319
 Successfully tagged 192.168.50.4:443/todo:latest
 ```
 
+Once that's done, you simply have to run `docker push` with the correct image tag. The image will
+automatically be pushed to the correct registry; in this case, the private registry we just
+deployed:
+
 ```bash
 root@vm1:/vagrant/todo# docker push 192.168.50.4:443/todo
 The push refers to repository [192.168.50.4:443/todo]
@@ -2829,6 +2920,117 @@ f276f6863123: Pushed
 latest: digest: sha256:23996894f90e4b144161e3dc8de07d1025e494691979bb3940ef1fc421ce2c3a size: 1994
 ```
 
+(Note that the repository is contacted with TLS over the 443 port. If the push fails with "insecure"
+errors, make sure the self-signed certificate was correctly generated and configured. See [Test an
+Insecure Registry][docker-registry-insecure].)
+
+[Back to top](#readme)
+
+<br>
+
+### Services stack
+
+This tutorial does not explain how to deploy a single service in a swarm. Read [Getting Started with
+Docker Swarm][docker-swarm-getting-started] for that.
+
+Docker Swarm allows you to deploy a **complete application stack** to a swarm. This is very similar
+to what we did earlier with Docker Compose, but across multiple swarm nodes. The `docker stack
+deploy` command, used to deploy services to a swarm, even accepts a `docker-compose.yml` file
+argument to define the stack you want to deploy.
+
+Let's look at the `docker-compose-swarm.yml` file in the `todo` directory. It is similar to
+`docker-compose-full.yml` which is the final version we used with Docker Compose, but with a few
+changes.
+
+The `build` option of the `app` service has been removed. It is not compatible with `docker stack
+deploy` because every image used for services in a swarm must come from a Docker registry.
+
+The `restart` options of all services have been replaced by **`restart_policy` options** under the
+`deploy` option. Restart policies for swarm services are more fine-grained than for local Docker
+Compose services because they need to be deployed across multiple swarm nodes.
+
+For example, let's take a look at the restart policy of the `lb` service:
+
+```
+restart_policy:
+  condition: on-failure
+  delay: 5s
+  window: 15s
+```
+
+* `condition: on-failure` indicates that the swarm should only attempt to restart a service's task
+  if it stopped due to failure (as opposed to, for example, stopping it manually).
+* `delay: 5s` indicates that the swarm should wait 5 second between restart attempts.
+* `window: 15s` indicates that after attempting to restart a task, the swarm should wait 15
+  seconds to check the tasks and decide whether the restart has succeeded. This option should be
+  adjusted based on your service's startup time on your swarm's nodes.
+
+Read the documentation of the [`restart_policy` option][docker-compose-restart-policy] to learn
+more.
+
+[Back to top](#readme)
+
+<br>
+
+### Service replication & placement
+
+You can control how many tasks are run on swarm nodes for a service. A service is either:
+
+* **Replicated** (the default): you specify the number of replica tasks the swarm manager(s) should
+  schedule on available nodes. 1 replica is deployed by default.
+* **Global**: one task should run on every available node.
+
+The **`placement` option** under the `deploy` option has been added to the `docker-compose.yml` file
+to specify placement constraints, i.e. rules that limit which swarm nodes tasks will be deployed to.
+You will see that the constraints match the requirements we defined when we applied labels to the
+swarm nodes:
+
+* We want to deploy the load balancer to a node within the organization's network DMZ
+  (`node.labels.zone == dmz`).
+* We want to deploy the database to a node optimized for storage (`node.labels.type == storage`).
+* We don't care where application containers are deployed.
+
+The **`replicas` option** under the `deploy` option of the `app` service specifies that we want 6
+replicas of our application to run in the swarm. The swarm manager(s) will therefore schedule 6
+tasks on nodes which match the placement constraints (all of them in this case, since there are no
+constraints for the `app` service). The tasks will be spread evenly across available nodes.
+
+[Back to top](#readme)
+
+<br>
+
+### Overlay network
+
+When deploying a stack based on a `docker-compose.yml` file, an [**overlay
+network**][docker-network-overlay] will automatically be created for the stack.
+
+It is a network that is distributed among the swarm nodes. This network sits on top of (overlays)
+the host-specific networks, allowing containers connected to it (including swarm service containers)
+to communicate securely. Docker transparently handles routing of each packet to and from the correct
+Docker host and the correct destination container.
+
+![Docker overlay networking](images/overlay.jpg)
+
+Much like the user-created bridge network we used earlier, it provides automatic DNS discovery so
+that services can communicate with each other simply by using their name.
+
+Additionally, the overlay network will perform **automatic load balancing** based on the service
+name. For example, a request on the `app` host (i.e. the `app` service defined in the stack) will
+automatically be routed by the overlay network to one of the replicated tasks of the service.
+
+If you look at the `nginx-swarm.conf` configuration file we'll be using to deploy nginx in the
+swarm, it no longer has a hardcoded reference to multiple applications like before. It only refers
+to the DNS name of the `app` service, and lets the overlay network do the load balancing.
+
+[Back to top](#readme)
+
+<br>
+
+### Deploy a service stack to a swarm
+
+Simply run the following `docker stack deploy` command to deploy the entire stack for the to-do
+application:
+
 ```bash
 root@vm1:/vagrant/todo# docker stack deploy -c docker-compose-swarm.yml todo
 Creating network todo_default
@@ -2837,13 +3039,31 @@ Creating service todo_app
 Creating service todo_db
 ```
 
+After a few seconds (the swarm manager(s) need a little time to instruct the nodes to run the
+correct tasks), you can use the `docker service ls` command to check the status of the various
+services deployed as part of the stack:
+
 ```bash
 root@vm1:/vagrant/todo# docker service ls
 ID                  NAME                MODE                REPLICAS            IMAGE                          PORTS
-j48resqwpsli        todo_app            replicated          4/4                 192.168.50.4:443/todo:latest
+j48resqwpsli        todo_app            replicated          6/6                 192.168.50.4:443/todo:latest
 ed8rwb6k3co4        todo_db             replicated          1/1                 mongo:3
 l6axuc05ctpb        todo_lb             replicated          1/1                 nginx:1.13-alpine              *:80->80/tcp
 ```
+
+As instructed, the swarm has deployed:
+
+* 1 replica of our load balancer (since only 1 node matches the constraints).
+* 1 replica of our database (since only 1 node matches the constraints).
+* 6 replicas of our application.
+
+Check out [`http://192.168.50.4`](http://192.168.50.4) to see the to-do application running.
+
+Reload the page a few times. Note that the hostname cycles over the 6 application container IDs,
+showing that the overlay network is indeed load balancing nginx's requests to the various
+application containers.
+
+Run `docker ps` on `vm1`:
 
 ```bash
 root@vm1:/vagrant/todo# docker ps
@@ -2854,6 +3074,16 @@ CONTAINER ID   IMAGE                          COMMAND                  CREATED  
 1d8f7aa1b779   registry:2                     "/entrypoint.sh /etc…"   5 minutes ago        Up 5 minutes        0.0.0.0:443->443/tcp, 5000/tcp   registry
 ```
 
+As expected, we find the load balancer deployed on `vm1` because it is the only node matching the
+constraint (the `zone` label must be `dmz`).
+
+Additionally, we can see 2 application containers running on this node. There are only 2 because
+since we have not defined any placement constraints for that service, the swarm has used its default
+behavior of spreading the service's tasks evenly across the available nodes (2 replicas on each of
+the 3 nodes adds up to the 6 replicas we requested).
+
+Run `docker ps` on `vm2` this time:
+
 ```bash
 root@vm2:~# docker ps
 CONTAINER ID   IMAGE                          COMMAND                  CREATED              STATUS              PORTS               NAMES
@@ -2862,12 +3092,23 @@ d385f706d17f   mongo:3                        "docker-entrypoint.s…"   About a
 8b1ab4c0b593   192.168.50.4:443/todo:latest   "/usr/local/bin/entr…"   2 minutes ago        Up 2 minutes        3000/tcp            todo_app.3.adpprnou75oov3e1lbewe7so6
 ```
 
+You'll find the database deployed on `vm2` since it is the only node matching the constraint (the
+`type` label must be `storage`). And you'll find another 2 application containers.
+
+Finally, run `docker ps` on `vm3` this time:
+
 ```bash
 root@vm3:~# docker ps
 CONTAINER ID        IMAGE                          COMMAND                  CREATED             STATUS              PORTS               NAMES
 d5eec77a1fa5        192.168.50.4:443/todo:latest   "/usr/local/bin/entr…"   13 seconds ago      Up 12 seconds       3000/tcp            todo_app.6.v2omr5jcm5rieeb7biek03n37
 0d417f7b4e6e        192.168.50.4:443/todo:latest   "/usr/local/bin/entr…"   13 seconds ago      Up 11 seconds       3000/tcp            todo_app.5.yonmr2h4dv3g8eaigxww2xy6y
 ```
+
+You'll find the last 2 remaining application containers. Nothing else has been deployed to this node
+due to the requested placement constraints.
+
+Use the `docker service ps <service>` command to more easily list a service's tasks and the nodes on
+which they are running:
 
 ```bash
 root@vm1:/vagrant/todo# docker service ps todo_app
@@ -2879,6 +3120,28 @@ br7402xmhw8y        todo_app.4          192.168.50.4:443/todo:latest   vm1      
 yonmr2h4dv3g        todo_app.5          192.168.50.4:443/todo:latest   vm3                 Running             Running 2 minutes ago
 v2omr5jcm5ri        todo_app.6          192.168.50.4:443/todo:latest   vm3                 Running             Running 2 minutes ago
 ```
+
+[Back to top](#readme)
+
+<br>
+
+### Swarm mode routing mesh
+
+Docker Swarm makes it easy to publish ports for services to make them available to resources outside
+the swarm. All nodes participate in an **ingress routing mesh**. The routing mesh enables each node
+in the swarm to accept connections on published ports for any service running in the swarm, even if
+there's no task running on the node. The routing mesh routes all incoming requests to published
+ports on available nodes to an active container.
+
+In our infrastructure, port 80 is published for the `lb` service. With the routing mesh, you can
+actually reach the to-do application at any of these adresses:
+
+* [`http://192.168.50.4`](http://192.168.50.4)
+* [`http://192.168.50.5`](http://192.168.50.5)
+* [`http://192.168.50.6`](http://192.168.50.6)
+
+Even though no nginx container is running on `vm2` or `vm3`, the routing mesh automatically routes
+incoming port 80 requests to the `todo_lb.1...` container on `vm1`.
 
 [Back to top](#readme)
 
@@ -3412,6 +3675,7 @@ TODO
 * docker swarm
 * dockerfile inheritance (all instructions, entrypoint, cmd)
 * show file system isolation by `cat`-ing clock script
+* unix process signals
 * appendix: init process
 * appendix: multi-stage builds
 * appendix: multi-process container (s6)
@@ -3437,6 +3701,7 @@ TODO
   * [Best Practices for Writing Dockerfiles][dockerfile-best-practices]
 * [Docker Networking Overview][docker-networking]
   * [Docker Bridge Networks][docker-bridge-networks]
+  * [Docker Networking Deep Dive (SlideShare)][docker-networking-deep-dive]
 * [Manage Data in Docker][docker-storage]
   * [Docker Storage Drivers][docker-storage-drivers]
   * [Use Volumes][docker-storage-volumes]
@@ -3467,16 +3732,21 @@ TODO
 [bash]: https://en.wikipedia.org/wiki/Bash_(Unix_shell)
 [consul]: https://www.consul.io
 [cow]: https://en.wikipedia.org/wiki/Copy-on-write
+[dmz]: https://en.wikipedia.org/wiki/DMZ_(computing)
 [docker-bridge-networks]: https://docs.docker.com/network/bridge/
 [docker-ce]: https://www.docker.com/community-edition
 [docker-compose]: https://docs.docker.com/compose/overview/
 [docker-compose-cli]: https://docs.docker.com/compose/reference/overview/
 [docker-compose-file]: https://docs.docker.com/compose/compose-file/
 [docker-compose-install]: https://docs.docker.com/compose/install/
+[docker-compose-restart-policy]: https://docs.docker.com/compose/compose-file/#restart_policy
 [docker-ignore]: https://docs.docker.com/engine/reference/builder/#dockerignore-file
+[docker-network-overlay]: https://docs.docker.com/network/overlay/
 [docker-networking]: https://docs.docker.com/network/
+[docker-networking-deep-dive]: https://www.slideshare.net/MadhuVenugopal2/dcus17-docker-networking-deep-dive
 [docker-restart-policy]: https://docs.docker.com/config/containers/start-containers-automatically/
 [docker-registry]: https://docs.docker.com/registry/deploying/
+[docker-registry-insecure]: https://docs.docker.com/registry/insecure/#use-self-signed-certificates
 [docker-security]: https://docs.docker.com/engine/security/security/
 [docker-storage]: https://docs.docker.com/storage/
 [docker-storage-bind]: https://docs.docker.com/storage/bind-mounts/
@@ -3487,6 +3757,8 @@ TODO
 [docker-swarm]: https://docs.docker.com/engine/swarm/
 [docker-swarm-concepts]: https://docs.docker.com/engine/swarm/key-concepts/
 [docker-swarm-getting-started]: https://docs.docker.com/engine/swarm/swarm-tutorial/
+[docker-swarm-placement]: https://docs.docker.com/engine/swarm/services/#control-service-placement
+[docker-swarm-routing-mesh]: https://docs.docker.com/engine/swarm/ingress/
 [dockerfile]: https://docs.docker.com/engine/reference/builder/
 [dockerfile-best-practices]: https://docs.docker.com/develop/develop-images/dockerfile_best-practices/
 [dockerfile-tips]: #dockerfile-tips

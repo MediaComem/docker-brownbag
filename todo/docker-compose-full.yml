@@ -4,6 +4,8 @@ services:
 
   lb:
     image: nginx:1.13-alpine
+    depends_on:
+      - app
     ports:
       - "3000:80"
     restart: always
@@ -11,10 +13,10 @@ services:
       - ./nginx.conf:/etc/nginx/nginx.conf:ro
 
   app:
+    image: docker-brownbag/todo
     build:
       context: .
       dockerfile: Dockerfile.full
-    image: todo
     depends_on:
       - db
     environment:

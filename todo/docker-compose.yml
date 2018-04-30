@@ -3,10 +3,10 @@ version: '3'
 services:
 
   app:
+    image: docker-brownbag/todo
     build:
       context: .
       dockerfile: Dockerfile.full
-    image: todo
     depends_on:
       - db
     environment:

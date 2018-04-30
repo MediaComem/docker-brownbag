@@ -3,6 +3,7 @@ version: '3'
 services:
 
   lb:
+    image: nginx:1.13-alpine
     deploy:
       placement:
         constraints:
@@ -13,13 +14,13 @@ services:
         window: 15s
     depends_on:
       - app
-    image: nginx:1.13-alpine
     ports:
       - "80:80"
     volumes:
       - /vagrant/todo/nginx-swarm.conf:/etc/nginx/nginx.conf:ro
 
   app:
+    image: 192.168.50.4:443/todo
     depends_on:
       - db
     deploy:
@@ -30,9 +31,9 @@ services:
         window: 75s
     environment:
       DATABASE_URL: "mongodb://db:27017"
-    image: 192.168.50.4:443/todo
 
   db:
+    image: mongo:3
     deploy:
       placement:
         constraints:
@@ -41,7 +42,6 @@ services:
         condition: on-failure
         delay: 5s
         window: 15s
-    image: mongo:3
     volumes:
       - data:/data/db
 
