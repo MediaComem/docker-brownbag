@@ -2928,7 +2928,7 @@ Insecure Registry][docker-registry-insecure].)
 
 <br>
 
-### Services stack
+### Service stacks
 
 This tutorial does not explain how to deploy a single service in a swarm. Read [Getting Started with
 Docker Swarm][docker-swarm-getting-started] for that.
@@ -3011,8 +3011,9 @@ Docker host and the correct destination container.
 
 ![Docker overlay networking](images/overlay.jpg)
 
-Much like the user-created bridge network we used earlier, it provides automatic DNS discovery so
-that services can communicate with each other simply by using their name.
+Much like the user-created bridge network we used earlier, Docker Swarm provides **automatic DNS
+resolution** on the overlay network so that services can communicate with each other simply by using
+their name.
 
 Additionally, the overlay network will perform **automatic load balancing** based on the service
 name. For example, a request on the `app` host (i.e. the `app` service defined in the stack) will
