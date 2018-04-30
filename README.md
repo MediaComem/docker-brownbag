@@ -383,7 +383,8 @@ misinterpreted by somebody.
 ```
 
 Let's create a fortune clock that tells the time and a fortune every 5 seconds. Run the following
-multiline command to save a bash script to `/usr/local/bin/clock.sh`:
+multiline command to save a bash script to `/usr/local/bin/clock.sh` (copy-paste the entire 10 lines
+of the command, starting with `cat` and ending with the second `EOF` 9 lines below):
 
 ```bash
 root@e07f81d7941d:/# cat << EOF > /usr/local/bin/clock.sh
@@ -3700,6 +3701,7 @@ TODO
 * [Docker Security][docker-security]
 * [Dockerfile Reference][dockerfile]
   * [Best Practices for Writing Dockerfiles][dockerfile-best-practices]
+  * [Trapping Signals in Docker Containers][docker-signals]
 * [Docker Networking Overview][docker-networking]
   * [Docker Bridge Networks][docker-bridge-networks]
   * [Docker Networking Deep Dive (SlideShare)][docker-networking-deep-dive]
@@ -3749,6 +3751,7 @@ TODO
 [docker-registry]: https://docs.docker.com/registry/deploying/
 [docker-registry-insecure]: https://docs.docker.com/registry/insecure/#use-self-signed-certificates
 [docker-security]: https://docs.docker.com/engine/security/security/
+[docker-signals]: https://medium.com/@gchudnov/trapping-signals-in-docker-containers-7a57fdda7d86
 [docker-storage]: https://docs.docker.com/storage/
 [docker-storage-bind]: https://docs.docker.com/storage/bind-mounts/
 [docker-storage-drivers]: https://docs.docker.com/storage/storagedriver/
