@@ -1,4 +1,4 @@
-# Docker Brown Bag: From Hello World to Swarm
+# Docker: From Hello World to Swarm
 
 You can follow this tutorial to learn the basics of Docker, from running a hello world container to
 running a multi-machine swarm. It's a condensed version of some of Docker's own documentation and
@@ -207,7 +207,8 @@ For more examples and ideas, visit:
 
 ### Run a container from an image
 
-Pull the [official Ubuntu image][hub-ubuntu] from the [Docker Hub][hub]:
+There are many official and community images available on the [Docker Hub][hub-explore]. For this
+tutorial, we'll start by pulling the [official Ubuntu image][hub-ubuntu] from the hub:
 
 ```bash
 $> docker pull ubuntu
@@ -3774,6 +3775,7 @@ TODO
 [horizontal-scaling]: https://en.wikipedia.org/wiki/Scalability#Horizontal_and_vertical_scaling
 [hub]: https://hub.docker.com
 [hub-alpine]: https://hub.docker.com/_/alpine/
+[hub-explore]: https://hub.docker.com/explore/
 [hub-mongo]: https://hub.docker.com/_/mongo/
 [hub-mongo-dockerfile]: https://github.com/docker-library/mongo/blob/dd8ceb3b3552d11c901a603d0b8b303e2fe4bc2e/3.6/Dockerfile
 [hub-nginx]: https://hub.docker.com/_/nginx/
