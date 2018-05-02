@@ -332,6 +332,10 @@ $> docker run -it ubuntu bash
 root@e07f81d7941d:/#
 ```
 
+This time, you are running a Bash shell, which is a long running command. The process running the
+shell will not stop until you manually type `exit` in the shell, so the container is not stopping
+either.
+
 You have a new command line prompt, indicating that you are within the container. You can now run
 any command you want within the running container:
 
@@ -471,8 +475,9 @@ While you recently had your problems on the run, they've regrouped and
 are making another attack.
 ```
 
-Use Ctrl-C to stop the script (the container will stop and be removed automatically thanks to the
-`--rm` option).
+Again, our `clock.sh` script is a long-running command (due to the `while` loop). The container will
+keep running until the script is stopped.  Use Ctrl-C to stop it (the container will stop and be
+removed automatically thanks to the `--rm` option).
 
 That's nice, but let's create a fancier version of our clock. Run a new Bash shell based on our
 `fortune-clock:1.0` image:
@@ -3031,8 +3036,8 @@ to the DNS name of the `app` service, and lets the overlay network do the load b
 
 ### Deploy a service stack to a swarm
 
-Simply run the following `docker stack deploy` command to deploy the entire stack for the to-do
-application:
+Simply run the following `docker stack deploy` command on `vm1` to deploy the entire stack for the
+to-do application:
 
 ```bash
 root@vm1:/vagrant/todo# docker stack deploy -c docker-compose-swarm.yml todo
