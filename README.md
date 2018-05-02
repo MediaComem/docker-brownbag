@@ -5,7 +5,8 @@ running a multi-machine swarm. It's a condensed version of some of Docker's own 
 other articles (see the [references](#references) at the bottom).
 
 Note: some names and IDs shown in sample command outputs are randomly generated or
-context-dependent, and will differ on your machine.
+context-dependent, and will differ on your machine. Pay attention to the instructions and do not
+blindly copy-paste commands.
 
 <!-- START doctoc generated TOC please keep comment here to allow auto update -->
 <!-- DON'T EDIT THIS SECTION, INSTEAD RE-RUN doctoc TO UPDATE -->
@@ -80,11 +81,12 @@ context-dependent, and will differ on your machine.
 * [Docker Community Edition (CE)][docker-ce] (the latest version is `18.03.0-ce` at the time of
   writing).
 * [Docker Compose][docker-compose-install] (installed with Docker by default if you're using Docker
-  for Mac or Docker for Windows).
+  for Mac or Docker for Windows; the latest version is `1.21.0` at the time of writing).
 * A UNIX command line (on Windows, use [Git Bash][git-bash] or the [Windows Subsystem for
   Linux][wsl]).
 
-Optionally, to quickly set up the infrastructure for the [Docker Swarm](#docker-swarm) chapter:
+Optionally, to quickly set up the infrastructure for the [Docker Swarm](#docker-swarm) chapter, you
+can use:
 
 * [Vagrant][vagrant] 2+
 * [VirtualBox][virtualbox] 5+
@@ -123,34 +125,36 @@ conflicts between teams running different software on the same infrastructure.
 
 ![Docker containers](images/containers.png)
 
-* **Lightweight** - Docker containers running on a single machine share that machine's operating
-  system kernel; they start instantly and use less CPU and RAM. Images are constructed from file
-  system layers and share common files. This minimizes disk usage and image downloads are much
-  faster.
-* **Standard** - Docker containers are based on open standards and run on all major Linux
-  distributions, Microsoft Windows, and on any infrastructure including VMs, bare-metal and in the
-  cloud.
-* **Secure** - Docker containers isolate applications from one another and from the underlying
-  infrastructure. Docker provides the strongest default isolation to limit app issues to a single
-  container instead of the entire machine.
-
-Containers and virtual machines have similar resource isolation and allocation benefits, but
-function differently because containers virtualize the operating system instead of hardware.
-Containers are more portable and efficient.
-
-![Docker virtual machine versus container](images/vm-vs-container.png)
+Containers and virtual machines are similar when it comes to resource isolation and allocation
+benefits, but function differently because containers virtualize the operating system instead of
+hardware.  Containers are more portable and efficient.
 
 Virtual machines (VMs) are an abstraction of physical hardware turning one server into many servers.
 The hypervisor allows multiple VMs to run on a single machine. Each VM includes a full copy of an
 operating system, one or more apps, necessary binaries and libraries - taking up tens of GBs. VMs
 can also be slow to boot.
 
-![Docker container versus virtual machine](images/container-vs-vm.png)
+![Docker virtual machine versus container](images/vm-vs-container.png)
 
 Containers are an abstraction at the app layer that packages code and dependencies together.
 Multiple containers can run on the same machine and share the OS kernel with other containers, each
 running as isolated processes in user space. Containers take up less space than VMs (container
 images are typically tens of MBs in size), and start almost instantly.
+
+![Docker container versus virtual machine](images/container-vs-vm.png)
+
+In a nutshell, containers are:
+
+* **Lightweight** - Docker containers running on a single machine **share that machine's operating
+  system kernel**; they start instantly and use less CPU and RAM. Images are constructed from file
+  system layers and share common files. This minimizes disk usage and image downloads are much
+  faster.
+* **Standard** - Docker containers are based on **open standards** and run on all major Linux
+  distributions, Microsoft Windows, and on any infrastructure including VMs, bare-metal and in the
+  cloud.
+* **Secure** - Docker containers **isolate applications** from one another and from the underlying
+  infrastructure. Docker provides the strongest default isolation to limit app issues to a single
+  container instead of the entire machine.
 
 [Back to top](#readme)
 
@@ -201,6 +205,8 @@ For more examples and ideas, visit:
  https://docs.docker.com/engine/userguide/
 ```
 
+If your output is similar, you can move on to the next section.
+
 [Back to top](#readme)
 
 <br>
@@ -208,7 +214,7 @@ For more examples and ideas, visit:
 ### Run a container from an image
 
 There are many official and community images available on the [Docker Hub][hub-explore]. For this
-tutorial, we'll start by pulling the [official Ubuntu image][hub-ubuntu] from the hub:
+tutorial, we'll start by pulling the [official `ubuntu` image][hub-ubuntu] from the hub:
 
 ```bash
 $> docker pull ubuntu
@@ -223,9 +229,9 @@ Digest: sha256:9ee3b83bcaa383e5e3b657f042f4034c92cdd50c03f73166c145c9ceaea9ba7c
 Status: Downloaded newer image for ubuntu:latest
 ```
 
-An **image** is a **blueprint** which form the basis of containers. It's basically a given state of
-a file system. This `ubuntu` image contains a headless Ubuntu operating system with only basic
-packages installed.
+An **image** is a **blueprint** which form the basis of containers. It's basically a snapshot of a
+file system in a given state. This `ubuntu` image contains a headless [Ubuntu operating
+system][ubuntu] with only minimal packages installed.
 
 You can list available images with `docker images`:
 
@@ -246,12 +252,12 @@ hello from ubuntu
 This runs an Ubuntu container.
 
 Running a container means **executing the specified command**, in this case `echo "hello from
-ubuntu"`, starting from an **image**, in this case the Ubuntu image.  The `echo` binary that is
-executed is the one provided by the Ubuntu OS in the image, not your machine.
+ubuntu"`, **in an isolated container started from an image**, in this case the Ubuntu image.  The
+`echo` binary that is executed is the one provided by the Ubuntu OS in the image, not your machine.
 
 If you list the running containers with `docker ps`, you will see that the container we just ran is
-*not running*.  A container **stops as soon as the process started by its command is done**.  Since
-`echo` is not a long-running command, the container stopped right away.
+**not running**.  A container **stops as soon as the process started by its command is done**.
+Since `echo` is not a long-running command, the container stopped right away.
 
 ```bash
 $> docker ps
@@ -306,11 +312,15 @@ Docker containers are very similar to [LXC containers][lxc] which provide many
 
   See the difference between running `ps -e` and `docker run --rm ubuntu ps -e`, which will show you
   all running processes on your machine, and the same as seen from within a container, respectively.
-* **File system isolation:** a container has its own file system separate from your machine's.
+* **File system isolation:** a container has its own file system separate from your machine's. See
+  the difference between running the following commands:
 
-  See the difference between running `ls -la /` and `docker run --rm ubuntu ls -la /`, which will
-  show you all files at the root of your file system, and all files at the root of the container's
-  file system, respectively.
+  * `ls -la /` and `docker run --rm ubuntu ls -la /`, which will show you all files at the root of
+    your file system, and all files at the root of the container's file system, respectively.
+  * `bash --version` and `docker run --rm ubuntu bash --version`, which will show you that the Bash
+    shell in the image is (probably) not the same as your machine's.
+  * `uname -a` and `docker run --rm ubuntu uname -a`, which will show you your machine's operating
+    system and the container's, respectively.
 * **Network isolation:** a container doesn't get privileged access to the sockets or interfaces of
   another container. Of course, containers can interact with each other through their respective
   network interface, just like they can interact with external hosts. We will see examples of this
@@ -332,12 +342,18 @@ $> docker run -it ubuntu bash
 root@e07f81d7941d:/#
 ```
 
-This time, you are running a Bash shell, which is a long running command. The process running the
-shell will not stop until you manually type `exit` in the shell, so the container is not stopping
-either.
+This time you are running a Bash shell, which is a **long running comman**d. The process running the
+shell will not stop until you manually type `exit` in the shell, so the **container is not
+stopping** either.
 
-You have a new command line prompt, indicating that you are within the container. You can now run
-any command you want within the running container:
+You should have a new command line prompt (`root@e07f81d7941d:/#` in this example), indicating that you are
+within the container:
+
+```bash
+root@e07f81d7941d:/#
+```
+
+You can now run any command you want within the running container:
 
 ```bash
 root@e07f81d7941d:/# date
@@ -387,9 +403,15 @@ Your motives for doing whatever good deed you may have in mind will be
 misinterpreted by somebody.
 ```
 
-Let's create a fortune clock that tells the time and a fortune every 5 seconds. Run the following
-multiline command to save a bash script to `/usr/local/bin/clock.sh` (copy-paste the entire 10 lines
-of the command, starting with `cat` and ending with the second `EOF` 9 lines below):
+Let's create a fortune clock script that tells the time and a fortune every 5 seconds.
+
+The `ubuntu` container image is very minimal, as most images are, and doesn't provide any editor
+such as `nano` or `vim`. You could install it as well, but for the purposes of this tutorial, we'll
+create the script with Unix commands.
+
+Run the following multiline command to save a bash script to `/usr/local/bin/clock.sh` (copy-paste
+the entire 10 lines of the command, starting with `cat` and ending with the second `EOF` 9 lines
+below, then press enter to execute the whole thing):
 
 ```bash
 root@e07f81d7941d:/# cat << EOF > /usr/local/bin/clock.sh
@@ -410,7 +432,8 @@ Make the script executable:
 root@e07f81d7941d:/# chmod +x /usr/local/bin/clock.sh
 ```
 
-Make sure it works:
+Make sure it works. Since the `/usr/local/bin` directory is in the PATH by default on Linux, you can
+simply execute `clock.sh` without using its absolute path:
 
 ```bash
 root@e07f81d7941d:/# clock.sh
@@ -430,9 +453,10 @@ Use Ctrl-C to stop the clock script. Then use `exit` to stop the Bash shell:
 root@e07f81d7941d:/# exit
 ```
 
-Since the Bash process has exited, the container has stopped:
+Since the Bash process has exited, the container has stopped as well:
 
 ```bash
+$> docker ps -a
 CONTAINER ID        IMAGE               COMMAND             CREATED             STATUS                       PORTS               NAMES
 f6b9fa680789        ubuntu              "bash"              13 minutes ago      Exited (130) 4 seconds ago                       goofy_shirley
 ```
@@ -443,8 +467,8 @@ f6b9fa680789        ubuntu              "bash"              13 minutes ago      
 
 ### Commit a container's state to an image manually
 
-Retrieve the name or ID of the previous container, in this case `goofy_shirley`.  You can create a
-new image based on that container's state with the `docker commit <container> <repository:tag>`
+Retrieve the name or ID of the previous container, in this case `goofy_shirley`.  You can **create a
+new image based on that container's state** with the `docker commit <container> <repository:tag>`
 command:
 
 ```bash
@@ -485,6 +509,25 @@ That's nice, but let's create a fancier version of our clock. Run a new Bash she
 ```bash
 $> docker run -it fortune-clock:1.0 bash
 root@4b38e523336c:/#
+```
+
+This new container is **based off of our `fortune-clock:1.0` image**, so it already contains what
+we've done done so far, i.e. the `fortune` command is already installed and the `clock.sh` script is
+where we put it:
+
+```bash
+root@4b38e523336c:/# /usr/games/fortune
+You're working under a slight handicap.  You happen to be human.
+
+root@4b38e523336c:/# cat /usr/local/bin/clock.sh
+#!/bin/bash
+trap "exit" SIGKILL SIGTERM SIGHUP SIGINT EXIT
+while true; do
+  echo It is $(date)
+  /usr/games/fortune
+  echo
+  sleep 5
+done
 ```
 
 Install the `cowsay` package:
@@ -566,7 +609,7 @@ Much better. Exit Bash to stop the container:
 root@4b38e523336c:/# exit
 ```
 
-You should now have to stopped container. The one in which we created the original clock script, and
+You should now have two stopped containers. The one in which we created the original clock script, and
 the newest one we just stopped:
 
 ```bash
@@ -594,7 +637,7 @@ ubuntu              latest              c9d990395902        10 days ago         
 hello-world         latest              e38bc07ac18e        11 days ago         1.85kB
 ```
 
-You can run it as before:
+You can run it:
 
 ```bash
 $> docker run --rm fortune-clock:2.0 clock.sh
@@ -613,8 +656,7 @@ It is Mon Apr 23 09:06:21 UTC 2018
 
 Use Ctrl-C to stop the script (and the container).
 
-Your previous image is still available under the `1.0` tag.
-You can run it again:
+Your **previous image is still available** under the `1.0` tag.  You can run it again:
 
 ```bash
 $> docker run --rm fortune-clock:1.0 clock.sh
@@ -622,27 +664,29 @@ It is Mon Apr 23 09:08:04 UTC 2018
 You attempt things that you do not even plan because of your extreme stupidity.
 ```
 
+Use Ctrl-C to stop the script (and the container).
+
 [Back to top](#readme)
 
 <br>
 
 ### Run containers in the background
 
-Until now we've only run containers **in the foreground**, meaning that they take control of our
-console and use it to print their output.
+Until now we've only run a container command **in the foreground**, meaning that Docker takes
+control of our console and forwards the script's output to it.
 
-You can run a container **in the background** by adding the `-d` or `--detach` option.  Let's also
-use the `--name` option to give it a specific name instead of using the default randomly generated
-one:
+You can run a container command **in the background** by adding the `-d` or `--detach` option.
+Let's also use the `--name` option to give it a specific name instead of using the default randomly
+generated one:
 
 ```bash
 $> docker run -d --name clock fortune-clock:2.0 clock.sh
 06eb72c218051c77148a95268a2be45a57379c330ac75a7260c16f89040279e6
 ```
 
-This time, the `docker run` command simply prints the ID of the container it
-has launched, and exits immediately.  But you can see that the container is
-indeed running with `docker ps`, and that it has the correct name:
+This time, the `docker run` command simply prints the ID of the container it has launched, and exits
+immediately.  But you can see that the container is indeed running with `docker ps`, and that it has
+the correct name:
 
 ```bash
 $> docker ps
@@ -1049,9 +1093,9 @@ build's context is the set of files at a specified path on your file system (or 
 For example, running `docker build /foo` would expect to find a Dockerfile at the path
 `/foo/Dockerfile`, and would use the entire contents of the `/foo` directory as the build context.
 
-The build is run by the Docker daemon, not by the CLI. The first thing a build process does is send
-the entire context (recursively) to the daemon. In most cases, it's best to start with an empty
-directory as context and keep your Dockerfile in that directory. Add only the files needed for
+The build is run by the Docker daemon, not by the CLI. The first thing a build process does is
+**send the entire context (recursively) to the daemon**. In most cases, it's best to start with an
+empty directory as context and keep your Dockerfile in that directory. Add only the files needed for
 building the Dockerfile.
 
 **Warning:** do not use your root directory, `/`, as the build context as it causes the build to
@@ -1076,8 +1120,8 @@ INSTRUCTION arguments...
 
 You can find all available instructions, such as `FROM` and `RUN`, in the [Dockerfile
 reference][dockerfile]. Many correspond to arguments or options of the Docker commands that we've
-used. For example, the `FROM` instruction corresponds to the `<image>` argument of the `docker run`
-command, and specifies what base image to use.
+used. For example, the `FROM` instruction corresponds to the `<image>` argument of the `docker run
+<image>` command, and specifies what base image to use.
 
 [Back to top](#readme)
 
@@ -1109,7 +1153,7 @@ RUN chmod +x /usr/local/bin/clock.sh
 
 It basically replicates what we have done manually:
 
-* The `FROM ubuntu:xenial` instruction starts the build process from the `ubuntu` base image.
+* The `FROM ubuntu` instruction starts the build process from the `ubuntu` base image.
 * The `RUN apt-get update` instruction executes the `apt-get update` command like we did before.
 * The next two `RUN` instructions install the `fortune` and `cowsay` packages, also like we did
   before.
@@ -1254,9 +1298,10 @@ Successfully built bcf88ef22f4c
 Successfully tagged fortune-clock:3.0
 ```
 
-It was much faster this time. As you can see, Docker is keeping a **cache** of the previously built
-layers. Since you have not changed the instructions in the Dockerfile, it assumes that the result
-will be the same and reuses the same layer.
+It was much faster this time. As you can see by the `Using cache` indications in the output, Docker
+is keeping a **cache** of the previously built layers. Since you have not changed the instructions
+in the Dockerfile or the build context, it assumes that the result will be the same and reuses the
+same layer.
 
 Make a change to the `clock.sh` script in the `fortune-clock` directory. For example, add a new line
 or a comment:
@@ -1321,25 +1366,30 @@ of layers.
 
 The `todo` directory contains a sample Node.js application to manage to-do notes.
 
-If you wanted to run this application on your machine, you would need to:
+If you wanted to run this application on your machine or on a server, you would need to:
 
 * Install and run a [MongoDB][mongo] database (version 3).
 * Install [Node.js][node] (version 8).
 * Run `npm install` in the application's directory to install its dependencies.
 * Run `npm start` in the application's directory to start it.
+* (Additionally in a production environment: set up a process manager to keep it running if it
+  crashes.)
 
-That takes some work if you don't already have the database or Node.js, or if you're not used to
-installing and managing them.  Let's start with the application itself. With what we've learned so
-far, you could write a Dockerfile that installs Node.js, installs the application's dependencies and
-starts it.
+That takes **some effort** if you don't already have the database or Node.js, or if you're not used
+to installing and managing them. It could also be problematic if you already have **different,
+non-compatible versions** of Node.js or MongoDB installed.
 
-However, don't forget that images can be shared on the [Docker hub][hub]. Popular frameworks and
-languages already have official (or non-official) images you can use. For example, the [`node`
-image][hub-node] already has Node.js installed: you only need to base your own image off of it and
-add your application's code.
+Running the application in a container can solve these problems. With what we've learned so far, you
+could write a Dockerfile that installs Node.js, installs the application's dependencies and starts
+it.
 
-You will find a minimal Dockerfile to do that in the `Dockerfile.min` file in the `todo` directory
-of this repository. This is what it contains:
+However, don't forget that images can be shared on the [Docker hub][hub] and reused. Popular
+frameworks and languages already have official (or non-official) images you can use. For example,
+the [`node` image][hub-node] already has Node.js installed: you only need to base your own image off
+of it and add your application's code.
+
+You will find a minimal Dockerfile to do that in the `Dockerfile` file in the `todo` directory of
+this repository. This is what it contains:
 
 ```
 FROM node:8
@@ -1356,7 +1406,8 @@ Here's what the instructions are for:
 * `FROM node:8` instructs Docker to build from the official `node:8` image (which contains the
   latest Node.js 8 version).
 * `WORKDIR /usr/src/app` indicates the working directory in which commands are run (e.g. when using
-  a `RUN` instruction).
+  a `RUN` instruction). Why use the `/usr/src/app` directory? It's simply a popular convention for
+  the directory of the application in Docker containers.
 * `COPY . /usr/src/app` copies the entire contents of the build context to the `/usr/src/app`
   directory in the container.
 * `RUN npm install` executes an `npm install` command to install the application's dependencies. Due
@@ -1417,9 +1468,9 @@ npm ERR!     /root/.npm/_logs/2018-04-23T15_27_29_784Z-debug.log
 ```
 
 It doesn't work because it attempts to connect to a MongoDB database on `localhost:27017` and there
-is no such thing. Even if you do actually have a MongoDB database running on that port for
-development, remember that each container has its own isolated network stack, so it can't reach
-services listening on your host machine's ports by default.
+is no such thing. Even if you do actually have a MongoDB database running on your machine on that
+port for development, remember that each container has its own **isolated network stack**, so it
+can't reach services listening on your host machine's ports by default.
 
 We will run a database in the next section.
 
@@ -1458,16 +1509,17 @@ multiple worker processes, or Apache might create a process per request. While "
 container" is frequently a good rule of thumb, it is not a hard and fast rule. Use your best
 judgment to keep containers as clean and modular as possible.)
 
-If containers depend on each other, you can use Docker container networks to ensure that these
-containers can communicate.
-
-For our Node.js application, we will therefore run 2 containers:
+For our Node.js application, we will therefore run **2 containers**:
 
 * 1 container to run a MongoDB server.
 * 1 container to run the Node.js application.
 
 This will make it easy to, for example, horizontally scale our application by running more than 1
 Node.js application container, while keeping only 1 MongoDB server container.
+
+(It's also possible to run more than 1 MongoDB server container, but that is more complicated as it
+requires the setup of [MongoDB replication][mongo-replication]. That is outside the scope of this
+tutorial.)
 
 [Back to top](#readme)
 
@@ -3680,7 +3732,8 @@ TODO
 
 ## TODO
 
-* docker swarm
+* docker daemon
+* docker swarm secrets
 * dockerfile inheritance (all instructions, entrypoint, cmd)
 * show file system isolation by `cat`-ing clock script
 * unix process signals
@@ -3788,6 +3841,7 @@ TODO
 [hub-ubuntu]: https://hub.docker.com/_/ubuntu/
 [lxc]: https://linuxcontainers.org
 [mongo]: https://www.mongodb.com
+[mongo-replication]: https://docs.mongodb.com/manual/replication/
 [musl-libc]: http://www.musl-libc.org
 [nginx]: https://www.nginx.com
 [nginx-lb]: http://nginx.org/en/docs/http/load_balancing.html
@@ -3797,6 +3851,7 @@ TODO
 [service-discovery]: https://en.wikipedia.org/wiki/Service_discovery
 [squashing-layers]: #squashing-image-layers
 [swarmkit]: https://github.com/docker/swarmkit
+[ubuntu]: https://www.ubuntu.com
 [union-fs]: https://en.wikipedia.org/wiki/UnionFS
 [vagrant]: https://www.vagrantup.com
 [virtualbox]: https://www.virtualbox.org
