@@ -3716,9 +3716,217 @@ connection and connection loss problems.
 
 
 
-### Multi-process containers
+### Multi-stage builds
 
-TODO
+[Squashing image layers](#squashing-image-layers) is one way to reduce the size of your images,
+[using multi-stage builds][docker-multi-stage-builds] is another. It's a more recent feature.
+
+One of the most challenging things about building images is **keeping the image size down**. Each
+instruction in the Dockerfile adds a layer to the image, and you need to remember to clean up any
+artifacts you don’t need before moving on to the next layer. To write a really efficient Dockerfile,
+you have traditionally needed to employ shell tricks and other logic to keep the layers as small as
+possible and to ensure that each layer has the artifacts it needs from the previous layer and
+nothing else.
+
+Take a look at the `multi-stage-builds/hello` directory in this repository. It contains a simple
+Hello World [Go][go] script. The `Dockerfile` looks like this:
+
+```
+FROM golang:1.10-alpine
+
+LABEL maintainer="mei-admin@heig-vd.ch"
+
+WORKDIR /go/src/app
+COPY . /go/src/app
+RUN go install
+
+ENTRYPOINT [ "/go/bin/app" ]
+CMD [ "World" ]
+```
+
+It starts from the [official `golang` image][hub-golang], compiles the script, and sets it to
+execute automatically when running a container based on the image.
+
+Build it:
+
+```bash
+$> docker build -t hello .
+Sending build context to Docker daemon  4.096kB
+Step 1/7 : FROM golang:1.10-alpine
+1.10-alpine: Pulling from library/golang
+ff3a5c916c92: Pull complete
+f32d2ea73378: Pull complete
+c6678747892c: Pull complete
+16b5f22d8b23: Pull complete
+Digest: sha256:356aea725be911d52e0f2f0344a17ac3d97c54c74d50b8561f58eae6cc0871bf
+Status: Downloaded newer image for golang:1.10-alpine
+ ---> 52d894fca6d4
+Step 2/7 : LABEL maintainer="mei-admin@heig-vd.ch"
+ ---> Running in c41503b15319
+Removing intermediate container c41503b15319
+ ---> bcd48903ecd3
+Step 3/7 : WORKDIR /go/src/app
+Removing intermediate container 8830fb0be6d6
+ ---> 5ef9446fb4ca
+Step 4/7 : COPY . /go/src/app
+ ---> e6568af7ab4f
+Step 5/7 : RUN go install
+ ---> Running in 9b43ccffbe3c
+Removing intermediate container 9b43ccffbe3c
+ ---> 5700e7915587
+Step 6/7 : ENTRYPOINT [ "/go/bin/app" ]
+ ---> Running in b1d829be3c3f
+Removing intermediate container b1d829be3c3f
+ ---> 001c1d6ed7f8
+Step 7/7 : CMD [ "World" ]
+ ---> Running in db6a78eddded
+Removing intermediate container db6a78eddded
+ ---> a59edc1b640d
+Successfully built a59edc1b640d
+Successfully tagged hello:latest
+```
+
+Check that it works:
+
+```bash
+$> docker run --rm hello
+Hello World
+$> docker run --rm hello Bob
+Hello Bob
+```
+
+As you can see by listing the images, the new `hello` image you just built takes up 387MB in size.
+
+```bash
+$> docker images
+REPOSITORY          TAG                 IMAGE ID            CREATED             SIZE
+hello               latest              a59edc1b640d        15 seconds ago      378MB
+golang              1.10-alpine         52d894fca6d4        3 weeks ago         376MB
+```
+
+As we've seen before, the 376MB of the `golang` image are actually taken up only once on your disk.
+But if you share this image on the Docker hub, and someone who doesn't already have the `golang`
+image pulls it, they will have to download 378MB worth of layers.
+
+But that's quite ridiculous considering the Go script itself takes up barely 2MB, as you can check
+yourself with the following command. And it's standalone once compiled. It doesn't need the Go
+language or compilation tools to run.
+
+```bash
+$> docker run --entrypoint ls --rm -it hello -lh /usr/local/bin/hello
+-rwxr-xr-x    1 root     root        2.0M May  3 07:42 /usr/local/bin/hello
+```
+
+One very common solution to this problem in the past was to have one Dockerfile to use for
+development (which contained everything needed to build your application), and a slimmed-down one to
+use for production, which only contained your application and exactly what was needed to run it.
+This has been referred to as the "builder pattern". Maintaining two Dockerfiles is not ideal.
+
+With **multi-stage builds**, you use **multiple FROM statements in your Dockerfile**. Each FROM
+instruction can use a different base, and each of them begins a new stage of the build. You can
+selectively copy artifacts from one stage to another, leaving behind everything you don’t want in
+the final image.
+
+The `Dockerfile.multistage` file in the same directory uses this feature:
+
+```
+FROM golang:1.10-alpine as builder
+
+WORKDIR /go/src/app
+COPY . /go/src/app
+RUN go install
+
+FROM alpine:3.7
+
+LABEL maintainer="mei-admin@heig-vd.ch"
+
+COPY --from=builder /go/bin/app /usr/local/bin/hello
+
+ENTRYPOINT [ "hello" ]
+CMD [ "World" ]
+```
+
+The first `FROM golang:1.10-alpine` statement starts a build based on the `golang` image,
+and names that **stage of the build** by adding `as builder`, which allows us to refer to it later
+(you can also refer to it by its 0-based index, but that's less readable).
+
+As before, this first stage copies the script into the container and compiles it.
+
+The second `FROM alpine:3.7` starts a **new build stage** from the minimal `alpine:3.7` image.
+
+Since the compiled script is already available from the `builder` stage, you only have to copy that
+into the new image, which is what the `COPY --from=builder <src> <dest>` instruction does. Instead
+of `<src>` referring to a file in the build context, it refers to a file in the `builder` stage.
+
+You can build it as well:
+
+```bash
+$> docker build -f Dockerfile.multistage -t hello .
+Sending build context to Docker daemon  4.096kB
+Step 1/9 : FROM golang:1.10-alpine as builder
+ ---> 52d894fca6d4
+Step 2/9 : WORKDIR /go/src/app
+Removing intermediate container 63c1f5deec54
+ ---> f2dc1f94f6f9
+Step 3/9 : COPY . /go/src/app
+ ---> 773db44160be
+Step 4/9 : RUN go install
+ ---> Running in 3c3f3cfc0c6b
+Removing intermediate container 3c3f3cfc0c6b
+ ---> ccce7bbe8b7b
+Step 5/9 : FROM alpine:3.7
+3.7: Pulling from library/alpine
+ff3a5c916c92: Already exists
+Digest: sha256:7df6db5aa61ae9480f52f0b3a06a140ab98d427f86d8d5de0bedab9b8df6b1c0
+Status: Downloaded newer image for alpine:3.7
+ ---> 3fd9065eaf02
+Step 6/9 : LABEL maintainer="mei-admin@heig-vd.ch"
+ ---> Running in 4973c4c55c4a
+Removing intermediate container 4973c4c55c4a
+ ---> 45295cf0ab94
+Step 7/9 : COPY --from=builder /go/bin/app /usr/local/bin/hello
+ ---> a9469b20a365
+Step 8/9 : ENTRYPOINT [ "hello" ]
+ ---> Running in b689d4bb16cf
+Removing intermediate container b689d4bb16cf
+ ---> b77644abfb2c
+Step 9/9 : CMD [ "World" ]
+ ---> Running in b1389e43c798
+Removing intermediate container b1389e43c798
+ ---> addbf7909f03
+Successfully built addbf7909f03
+Successfully tagged multi-stage-hello:latest
+```
+
+It should work as before:
+
+```bash
+$> docker run --rm multi-stage-hello
+Hello World
+$> docker run --rm multi-stage-hello Bob
+Hello Bob
+```
+
+But the image now only contains the Alpine Linux base and the compiled script, reducing its total
+size from 378MB to 6.29MB:
+
+```bash
+$> docker images
+REPOSITORY          TAG                 IMAGE ID            CREATED             SIZE
+multi-stage-hello   latest              88e1abecdc0c        1 second ago        6.29MB
+<none>              <none>              b32a434ebac2        2 seconds ago       378MB
+hello               latest              bb1aafd1c3ea        16 seconds ago      378MB
+golang              1.10-alpine         52d894fca6d4        3 weeks ago         376MB
+alpine              3.7                 3fd9065eaf02        3 months ago        4.15MB
+```
+
+Another example where you may apply this pattern is a client-side application using a framework with
+a build chain, such as Angular or React. You only need the build tools to produce a production
+build, i.e. the final HTML, JavaScript and CSS files that will be served to the browser. Once you
+have that, you don't need the build tools any more.
+
+You can build your application in the first stage, then copy only the HTML, JavaScript and CSS
+products to the final stage.
 
 [Back to top](#readme)
 
@@ -3738,9 +3946,8 @@ TODO
 * show file system isolation by `cat`-ing clock script
 * unix process signals
 * appendix: init process
-* appendix: multi-stage builds
+* appendix: multi-stage builds, react example
 * appendix: multi-process container (s6)
-* add summary for each section
 * developing with Docker
 
 [Back to top](#readme)
@@ -3803,6 +4010,7 @@ TODO
 [docker-compose-install]: https://docs.docker.com/compose/install/
 [docker-compose-restart-policy]: https://docs.docker.com/compose/compose-file/#restart_policy
 [docker-ignore]: https://docs.docker.com/engine/reference/builder/#dockerignore-file
+[docker-multi-stage-builds]: https://docs.docker.com/develop/develop-images/multistage-build/
 [docker-network-overlay]: https://docs.docker.com/network/overlay/
 [docker-networking]: https://docs.docker.com/network/
 [docker-networking-deep-dive]: https://www.slideshare.net/MadhuVenugopal2/dcus17-docker-networking-deep-dive
@@ -3830,10 +4038,12 @@ TODO
 [fortune]: https://en.wikipedia.org/wiki/Fortune_(Unix)
 [git-bash]: https://git-scm.com/downloads
 [glibc-etc]: http://www.etalabs.net/compare_libcs.html
+[go]: https://golang.org
 [horizontal-scaling]: https://en.wikipedia.org/wiki/Scalability#Horizontal_and_vertical_scaling
 [hub]: https://hub.docker.com
 [hub-alpine]: https://hub.docker.com/_/alpine/
 [hub-explore]: https://hub.docker.com/explore/
+[hub-golang]: https://hub.docker.com/_/golang/
 [hub-mongo]: https://hub.docker.com/_/mongo/
 [hub-mongo-dockerfile]: https://github.com/docker-library/mongo/blob/dd8ceb3b3552d11c901a603d0b8b303e2fe4bc2e/3.6/Dockerfile
 [hub-nginx]: https://hub.docker.com/_/nginx/
