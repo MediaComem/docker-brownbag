@@ -132,8 +132,8 @@ conflicts between teams running different software on the same infrastructure.
 
 ![Docker containers](images/containers.png)
 
-Containers and virtual machines are similar when it comes to resource isolation and allocation
-benefits, but function differently because containers virtualize the operating system instead of
+**Containers and virtual machines are similar** when it comes to resource isolation and allocation
+benefits, **but function differently** because containers virtualize the operating system instead of
 hardware.  Containers are more portable and efficient.
 
 Virtual machines (VMs) are an abstraction of physical hardware turning one server into many servers.
@@ -156,9 +156,9 @@ In a nutshell, containers are:
   system kernel**; they start instantly and use less CPU and RAM. Images are constructed from file
   system layers and share common files. This minimizes disk usage and image downloads are much
   faster.
-* **Standard** - Docker containers are based on **open standards** and run on all major Linux
-  distributions, Microsoft Windows, and on any infrastructure including VMs, bare-metal and in the
-  cloud.
+* **Standard** - Docker containers are based on [**open standards**][open-container-initiative] and
+  run on all major Linux distributions, Microsoft Windows, and on any infrastructure including VMs,
+  bare-metal and in the cloud.
 * **Secure** - Docker containers **isolate applications** from one another and from the underlying
   infrastructure. Docker provides the strongest default isolation to limit app issues to a single
   container instead of the entire machine.
@@ -236,7 +236,7 @@ Digest: sha256:9ee3b83bcaa383e5e3b657f042f4034c92cdd50c03f73166c145c9ceaea9ba7c
 Status: Downloaded newer image for ubuntu:latest
 ```
 
-An **image** is a **blueprint** which form the basis of containers. It's basically a snapshot of a
+An **image** is a **blueprint** which forms the basis of containers. It's basically a snapshot of a
 file system in a given state. This `ubuntu` image contains a headless [Ubuntu operating
 system][ubuntu] with only minimal packages installed.
 
@@ -249,22 +249,21 @@ ubuntu              latest              c9d990395902        7 days ago          
 hello-world         latest              e38bc07ac18e        8 days ago          1.85kB
 ```
 
-Run a **container** based on that image with `docker run <image> [command...]`:
+Run a **container** based on that image with `docker run <image> [command...]`.  The following
+command runs an Ubuntu container:
 
 ```bash
 $> docker run ubuntu echo "hello from ubuntu"
 hello from ubuntu
 ```
 
-This runs an Ubuntu container.
-
 Running a container means **executing the specified command**, in this case `echo "hello from
 ubuntu"`, **in an isolated container started from an image**, in this case the Ubuntu image.  The
 `echo` binary that is executed is the one provided by the Ubuntu OS in the image, not your machine.
 
-If you list the running containers with `docker ps`, you will see that the container we just ran is
+If you list running containers with `docker ps`, you will see that the container we just ran is
 **not running**.  A container **stops as soon as the process started by its command is done**.
-Since `echo` is not a long-running command, the container stopped right away.
+Since `echo` is not a long-running command, the container stopped right away:
 
 ```bash
 $> docker ps
@@ -291,7 +290,8 @@ $> docker ps -a
 CONTAINER ID        IMAGE               COMMAND             CREATED             STATUS              PORTS               NAMES
 ```
 
-You can also use the `--rm` option with `docker run` to automatically remove the container when it stops:
+You can also add the `--rm` option to `docker run` to run a container and automatically remove it
+when it stops:
 
 ```bash
 $> docker run --rm ubuntu echo "hello from ubuntu"
@@ -325,7 +325,7 @@ Docker containers are very similar to [LXC containers][lxc] which provide many
   * `ls -la /` and `docker run --rm ubuntu ls -la /`, which will show you all files at the root of
     your file system, and all files at the root of the container's file system, respectively.
   * `bash --version` and `docker run --rm ubuntu bash --version`, which will show you that the Bash
-    shell in the image is (probably) not the same as your machine's.
+    shell on your machine is (probably) not the exact same version as the one in the image.
   * `uname -a` and `docker run --rm ubuntu uname -a`, which will show you your machine's operating
     system and the container's, respectively.
 * **Network isolation:** a container doesn't get privileged access to the sockets or interfaces of
@@ -410,11 +410,11 @@ Your motives for doing whatever good deed you may have in mind will be
 misinterpreted by somebody.
 ```
 
-Let's create a fortune clock script that tells the time and a fortune every 5 seconds.
+Let's create a **fortune clock script** that tells the time and a fortune every 5 seconds.
 
 The `ubuntu` container image is very minimal, as most images are, and doesn't provide any editor
 such as `nano` or `vim`. You could install it as well, but for the purposes of this tutorial, we'll
-create the script with Unix commands.
+create the script with the basic commands available to us in the container.
 
 Run the following multiline command to save a bash script to `/usr/local/bin/clock.sh` (copy-paste
 the entire 10 lines of the command, starting with `cat` and ending with the second `EOF` 9 lines
@@ -494,7 +494,7 @@ hello-world         latest              e38bc07ac18e        11 days ago         
 ```
 
 That image contains the `/usr/local/bin/clock.sh` script we created, so we can run it directly with
-`docker run <image> <command>`:
+`docker run <image> [command...]`:
 
 ```bash
 $> docker run --rm fortune-clock:1.0 clock.sh
@@ -707,8 +707,8 @@ CONTAINER ID        IMAGE               COMMAND             CREATED             
 
 ### Access container logs
 
-You can use the `docker logs <container>` command to see the output of a
-container running in the background:
+You can use the `docker logs <container>` command to see the **output of a container running in the
+background**:
 
 ```bash
 $> docker logs clock
@@ -724,7 +724,7 @@ It is Mon Apr 23 09:12:06 UTC 2018
 ...
 ```
 
-Add the `-f` option to keep following the log output in real time:
+Add the `-f` option to keep following the log **output in real time**:
 
 ```bash
 $> docker logs -f clock
@@ -750,7 +750,7 @@ Use Ctrl-C to stop following the logs.
 
 ### Stop and restart containers
 
-You may stop a container running in the background with the `docker stop <container>` command:
+You may **stop a container running in the background** with the `docker stop <container>` command:
 
 ```bash
 $> docker stop clock
@@ -760,14 +760,16 @@ clock
 You can check that is has indeed stopped:
 
 ```bash
+$> docker ps -a
 CONTAINER ID        IMAGE               COMMAND             CREATED             STATUS                        PORTS               NAMES
 06eb72c21805        fortune-clock:2.0   "clock.sh"          2 minutes ago       Exited (0) 1 second ago                           clock
 4b38e523336c        fortune-clock:1.0   "bash"              17 minutes ago      Exited (130) 13 minutes ago                       peaceful_turing
 f6b9fa680789        ubuntu              "bash"              40 minutes ago      Exited (130) 27 minutes ago                       goofy_shirley
 ```
 
-You can restart it with the `docker start <container>` command. This will re-execute the command
-that was originally given to `docker run <container> <command>`, in this case `clock.sh`:
+You can **restart** it with the `docker start <container>` command. This will **re-execute the
+command** that was originally given to `docker run <container> [command...]`, in this case
+`clock.sh`:
 
 ```bash
 $> docker start clock
@@ -868,8 +870,8 @@ It is Mon Apr 23 09:40:36 UTC 2018
 
 ### Image layers
 
-A Docker image is built up from a series of layers. Each layer contains set of differences from the
-layer before it:
+A Docker **image** is built up from a series of **layers**. Each layer contains a set of differences
+from the layer before it:
 
 ![Docker: Image Layers](images/layers.jpg)
 
@@ -973,10 +975,10 @@ make it work:
   writable layer, and modify that copied version. Previous version(s) of the file in older layers
   still exist, but are "hidden" by the file system; only the most recent version is seen.
 
-![Docker: Sharing Layers](images/sharing-layers.jpg)
-
 Multiple containers can therefore use the same read-only image layers, as they only modify their own
-writable top layer.
+writable top layer:
+
+![Docker: Sharing Layers](images/sharing-layers.jpg)
 
 [Back to top](#readme)
 
@@ -1082,11 +1084,11 @@ What we've just learned about layers has several implications:
 ## Dockerfile
 
 Manually starting containers, making changes and committing images is all well and good, but is
-prone to errors and not reproducible.
+**prone to errors and not reproducible**.
 
 Docker can build images automatically by reading the instructions from a [Dockerfile][dockerfile]. A
 Dockerfile is a text document that contains all the commands a user could call on the command line
-to assemble an image. Using the `docker build` command, users can create an automated build that
+to assemble an image. Using the `docker build` command, users can create an **automated build** that
 executes several command line instructions in succession.
 
 [Back to top](#readme)
@@ -1128,7 +1130,7 @@ INSTRUCTION arguments...
 You can find all available instructions, such as `FROM` and `RUN`, in the [Dockerfile
 reference][dockerfile]. Many correspond to arguments or options of the Docker commands that we've
 used. For example, the `FROM` instruction corresponds to the `<image>` argument of the `docker run
-<image>` command, and specifies what base image to use.
+<image> [command...]` command, and specifies what base image to use.
 
 [Back to top](#readme)
 
@@ -1158,7 +1160,7 @@ COPY clock.sh /usr/local/bin/clock.sh
 RUN chmod +x /usr/local/bin/clock.sh
 ```
 
-It basically replicates what we have done manually:
+It basically **replicates what we have done manually**:
 
 * The `FROM ubuntu` instruction starts the build process from the `ubuntu` base image.
 * The `RUN apt-get update` instruction executes the `apt-get update` command like we did before.
@@ -1173,8 +1175,8 @@ It basically replicates what we have done manually:
 
 Remain in the `fortune-clock` directory and run the following build command.  The `-t` or `--tag
 <repo:tag>` option indicates that we want to tag the image like we did when we were using the
-`docker commit <repo:tag>` command. The last argument, `.`, indicates that the build context is the
-current directory:
+`docker commit <container> <repo:tag>` command. The last argument, `.`, indicates that the build
+context is the current directory:
 
 ```bash
 $> docker build -t fortune-clock:3.0 .
@@ -1208,11 +1210,11 @@ Successfully tagged fortune-clock:3.0
 
 As you can see, Docker:
 
-* Uploaded to build context (i.e. the contents of the `fortune-clock` directory) to the Docker
+* **Uploaded to build context** (i.e. the contents of the `fortune-clock` directory) to the Docker
   deamon.
-* Ran each instruction in the Dockerfile one by one, creating an intermediate container each time,
-  based on the previous state.
-* Created an image with the final state, and the specified tag (i.e. `fortune-clock:3.0`).
+* **Ran each instruction** in the Dockerfile **one by one**, creating an intermediate container each
+  time, based on the previous state.
+* **Created an image** with the final state, and the specified tag (i.e. `fortune-clock:3.0`).
 
 You can see that new image in the list of images:
 
@@ -1270,8 +1272,9 @@ $> docker inspect fortune-clock:3.0
 The first few layers (up to the one starting with `a8de0e025`) are the same as before, since they
 are the `ubuntu` image's base layers. The last 5 layers, however, are new.
 
-Basically, Docker created a layer for **each instruction in the Dockerfile**. Since we have 4 `RUN`
-instructions and 1 `COPY` instruction in the Dockerfile we used, there are 5 additional layers.
+Basically, Docker created **one layer for each instruction in the Dockerfile**. Since we have 4
+`RUN` instructions and 1 `COPY` instruction in the Dockerfile we used, there are 5 additional
+layers.
 
 [Back to top](#readme)
 
@@ -1306,7 +1309,7 @@ Successfully tagged fortune-clock:3.0
 ```
 
 It was much faster this time. As you can see by the `Using cache` indications in the output, Docker
-is keeping a **cache** of the previously built layers. Since you have not changed the instructions
+is keeping a **cache of the previously built layers**. Since you have not changed the instructions
 in the Dockerfile or the build context, it assumes that the result will be the same and reuses the
 same layer.
 
@@ -1316,6 +1319,8 @@ or a comment:
 ```bash
 #!/bin/bash
 trap "exit" SIGKILL SIGTERM SIGHUP SIGINT EXIT
+
+# TODO: add new lines or a comment here!
 
 # Print the date and a fortune every 5 seconds.
 while true; do
@@ -1356,11 +1361,12 @@ Docker is still using its cache for the first 3 commands (the `apt-get update` a
 of the `fortune` and `cowsay` packages), since they are executed before the `clock.sh` script is
 copied, and are therefore not affected by the change.
 
-The `COPY` instruction is executed without cache, however, since Docker detects that the `clock.sh`
-script has changed.
+The `COPY` instruction is executed **without cache**, however, since Docker detects that **the
+`clock.sh` script has changed**.
 
-Consequently, all further instructions after that `COPY` cannot use the cache, since the state upon
-which they are based has changed. Therefore, the last `RUN` instruction also does not use the cache.
+Consequently, **all further instructions** after that `COPY` **cannot use the cache**, since the
+state upon which they are based has changed. Therefore, the last `RUN` instruction also does not use
+the cache.
 
 See [Squashing Image Layers][squashing-layers] for tips on how to minimize build time and the number
 of layers.
@@ -1421,7 +1427,7 @@ Here's what the instructions are for:
   to the previous `WORKDIR` instruction, this is executed in the `/usr/src/app` directory of the
   container.
 * `CMD [ "npm", "start" ]` indicates the default command that will be executed when running this
-  container. This is equivalent to the arguments we passed to `docker run <image> <command...>`. If
+  container. This is equivalent to the arguments we passed to `docker run <image> [command...]`. If
   a default command is specified in the image with `CMD`, you can simply use `docker run <image>` to
   run that command.
 
@@ -1477,7 +1483,7 @@ npm ERR!     /root/.npm/_logs/2018-04-23T15_27_29_784Z-debug.log
 It doesn't work because it attempts to connect to a MongoDB database on `localhost:27017` and there
 is no such thing. Even if you do actually have a MongoDB database running on your machine on that
 port for development, remember that each container has its own **isolated network stack**, so it
-can't reach services listening on your host machine's ports by default.
+can't reach services listening on your host machine's ports.
 
 We will run a database in the next section.
 
@@ -1524,9 +1530,10 @@ For our Node.js application, we will therefore run **2 containers**:
 This will make it easy to, for example, horizontally scale our application by running more than 1
 Node.js application container, while keeping only 1 MongoDB server container.
 
-(It's also possible to run more than 1 MongoDB server container, but that is more complicated as it
-requires the setup of [MongoDB replication][mongo-replication]. That is outside the scope of this
-tutorial.)
+(It would also be possible to run more than 1 MongoDB server container, but that would be more
+complicated as it would require the configuration of [MongoDB replication][mongo-replication]. That
+is outside the scope of this tutorial. Multiple application containers, however, can easily talk to
+the same database with no additional configuration.)
 
 [Back to top](#readme)
 
@@ -1534,10 +1541,11 @@ tutorial.)
 
 ### Exposing container ports on the host machine
 
-We will use the [official `mongo` image][hub-mongo] on Docker hub to run a MongoDB database
-container for our application. [Its Dockerfile][hub-mongo-dockerfile] is more complex than the one
+We will use the [official `mongo` image][hub-mongo] on Docker hub to **run a MongoDB database
+container** for our application. [Its Dockerfile][hub-mongo-dockerfile] is more complex than the one
 we've used as an example, but you should now easily understand what it does on principle (i.e.
-install what is needed to run a MongoDB server and run the appropriate command to start it).
+install and configure what is needed to run a MongoDB server and run the appropriate command to
+start it).
 
 Run a MongoDB 3+ container named `db` with the following command:
 
@@ -1583,8 +1591,8 @@ database. (It might not work on macOS & Windows machines because some Docker ins
 intermediate Linux virtual machine to run the containers, so your machine might not actually be the
 host Docker machine.)
 
-However, that IP address is not predictable so that's not a good solution. You can expose a
-container's port on your host machine by adding the `-p` or `--publish <hostPort:containerPort>`
+However, **that IP address is not predictable** so that's not a good solution. You can **expose a
+container's port on your host machine** by adding the `-p` or `--publish <hostPort:containerPort>`
 option to the `docker run` command.
 
 Stop the MongoDB container with Ctrl-C and start another one with this command:
@@ -1611,8 +1619,8 @@ MongoDB server version: 3.6.4
 Exit the MongoDB shell with `exit`. Stop the MongoDB container with Ctrl-C.
 
 This works, but we can't use this method to connect our Node.js application container to our MongoDB
-server container. You can reach any container through the host machine, but the containers
-themselves cannot reach your host machine's ports.
+server container. You can reach any container from the host machine, but **containers cannot
+reach your host machine's ports**.
 
 [Back to top](#readme)
 
@@ -1635,15 +1643,15 @@ Read the [Docker Networking Overview][docker-networking] to learn about the diff
 drivers such as `bridge`, `host` and `none`. The links in that article will also give more
 information on how Docker networks work at the OS level.
 
-For now, know that a [bridge network][docker-bridge-networks] uses a software bridge which allows
-containers connected to the same bridge network to communicate, while providing isolation from
-containers which are not connected to that bridge network. The Docker bridge driver automatically
-installs rules in the host machine so that containers on different bridge networks cannot
-communicate directly with each other.
+For now, know that a [**bridge network**][docker-bridge-networks] uses a software bridge which
+**allows containers connected to the same network to communicate**, while providing isolation from
+containers which are not connected to that network. The Docker bridge driver automatically installs
+rules in the host machine so that **containers on different bridge networks cannot communicate
+directly with each other**.
 
 A bridge network named `bridge` exists by default. New containers connect to it unless otherwise
-specified. However, we will not use this default network, as user-defined bridge networks are
-superior to the default bridge network. We will see why shortly.
+specified. However, we will not use this default network, as **user-defined bridge networks are
+superior** to the default bridge network. We will see why shortly.
 
 Let's create a network for our application with the `docker network create <name>` command:
 
@@ -1669,9 +1677,9 @@ cd79f5b6d678        none                null                local
 
 #### Running a container in a network
 
-To run the MongoDB server container in our user-defined `todo` network, add the `--network` option
-to the `docker run` command. This time, we'll also run the container in the background with the `-d`
-option:
+To run the MongoDB server container in our user-defined `todo` network, add the `--network <name>`
+option to the `docker run` command. This time, we'll also run the container in the background with
+the `-d` option:
 
 ```bash
 $> docker run -d --name db --network todo mongo:3
@@ -1735,17 +1743,17 @@ npm ERR! Exit status 1
 
 It still does not work because the Node.js application still attempts to connect to its default
 database address of `localhost:27017`. Fortunately, a custom database URL can be provided to the
-application by setting the `$DATABASE_URL` environment variable. But what address to use?
+application by setting the `$DATABASE_URL` environment variable. But **what address should we use?**
 
 This is where Docker's networking magic comes into play. We mentioned earlier that user-defined
-bridge networks are superior to Docker's default bridge network. User-defined bridges provide
-**automatic DNS resolution between containers**, i.e. containers can resolve each other by name or
+bridge networks are superior to Docker's default bridge network. **User-defined bridges provide
+automatic DNS resolution between containers**, i.e. containers can resolve each other by name or
 alias.
 
 Since we added the `--name db` option when running our MongoDB container, any container on the same
 network can reach it at the `db` address (which is simply a host like `localhost` or `example.com`).
 
-Simply add the `-e` or `--env <VARIABLE=VALUE>` option to the `docker run` command to define a new
+Simply add the `-e` or `--env <VARIABLE=value>` option to the `docker run` command to define a new
 environment variable. We'll also add the `-d` option to run it in the background, and a `-p` option
 to publish its 3000 port on our host machine:
 
@@ -1783,7 +1791,7 @@ requests.
 
 ## Persistent storage
 
-Create a few to-do notes with the running application.
+Create a few to-do notes in the running application.
 
 Stop both containers and restart them:
 
@@ -1811,11 +1819,7 @@ your to-do notes should still be there.
 Now let's see what happens if you stop *and remove* both containers:
 
 ```bash
-$> docker stop app db
-app
-db
-
-$> docker rm app db
+$> docker rm -f app db
 app
 db
 ```
@@ -1866,9 +1870,9 @@ bind mount, a **file or directory on the host machine is mounted into a containe
 directory is referenced by its full or relative path on the host machine.
 
 Bind mounts are very performant, but they rely on the host machine's filesystem having a specific
-directory structure available, making the container less portable. If you are developing new Docker
-applications, consider using [named volumes][docker-storage-volumes] instead (which we'll see in the
-next section). You can't use Docker commands to directly manage bind mounts.
+directory structure available, making the container **less portable**. If you are developing new
+Docker applications, consider using [named volumes][docker-storage-volumes] instead (which we'll see
+in the next section). You can't use Docker commands to directly manage bind mounts.
 
 Let's stop the `app` and `db` containers and remove the `db` container. As before, this will clear
 all our data:
@@ -1894,8 +1898,8 @@ $> docker run -d --name db --network todo -v ~/docker-brownbag-db:/data/db mongo
 0678bd8cafde87a6d0a6c29022d567d316d3a735229c08ab5387737644143283
 ```
 
-This instructs Docker to create the `~/docker-brownbag-db` on your host machine, and to mount it
-into the running container at the `/data/db` path (overwriting anything that was already there).
+This instructs Docker to create the `~/docker-brownbag-db` on your host machine, and to **mount it
+into the running container** at the `/data/db` path (overwriting anything that was already there).
 
 Give the MongoDB server a second or two to initialize, then list the contents of the
 `~/docker-brownbag-db` on your machine:
@@ -1933,7 +1937,7 @@ app
 
 Now play with the application–create a few todo-notes.
 
-Stop both containers and remove the `db` container again. As before, the top writable layer of the
+Stop both containers again and remove the `db` container. As before, the top writable layer of the
 `db` container is deleted:
 
 ```bash
@@ -1957,7 +1961,7 @@ app
 ```
 
 This time, the persisted MongoDB server's data was mounted into the new container. Instead of
-initializing from scratch, the MongoDB server loaded the existing data (it's as if it was simply
+initializing from scratch, **the MongoDB server loaded the existing data** (it's as if it was simply
 restarted). Your to-do notes are still here!
 
 [Back to top](#readme)
@@ -2001,7 +2005,7 @@ $> rm -fr ~/docker-brownbag-db
 
 To run a MongoDB server container with a volume instead of a bind mount, use the same volume option,
 but use an arbitrary name instead of a host machine directory, i.e. `todo_data` instead of
-`~/docker-brownbag-db`. Because it's not a path (it doesn't start with `~`, `.` or `/`), Docker
+`~/docker-brownbag-db`. Because it's not an absolute path (it doesn't start with `~` or `/`), Docker
 interprets it as the name of a Docker volume, which it will automatically create if it doesnt exist.
 
 ```bash
@@ -2040,8 +2044,8 @@ $> docker run -d --name db --network todo -v todo_data:/data/db mongo:3
 3ac1a6846a805d7821f8b80c230fe318fcb626b956b5b447e756cf1da1e221ae
 ```
 
-Again, the MongoDB server's data persisted in the Docker volume, and a volume is not deleted when
-containers using it are removed, so your to-do notes are still here!
+Again, the MongoDB server's data persisted in the Docker volume, and **a volume is not deleted when
+containers using it are removed**, so your to-do notes are still here!
 
 If you inspect the volume, you can see where its data is actually stored:
 
@@ -2172,9 +2176,9 @@ You could make changes to a running container using `docker exec`, but that's co
 practice.
 
 Containers produced by your Dockerfiles should be as **ephemeral** as possible. By "ephemeral", we
-mean that they can be stopped and destroyed and a new one built and put in place with an absolute
-minimum of set-up and configuration. You shouldn't have to perform additional manual changes in a
-container once it's started.
+mean that they can be **stopped and destroyed** and a **new one built and put in place** with an
+**absolute minimum of setup and configuration**. You shouldn't have to perform additional manual
+changes in a container once it's started.
 
 You may want to take a look at the [Processes][12factor-processes] section of the [12 Factor app
 methodology][12factor] to get a feel for the motivations of running containers in such a stateless
@@ -2299,7 +2303,7 @@ so far::
   `docker build` with the current directory as the build context (where we will run the
   `docker-compose` command).
 * The `dockerfile: Dockerfile.full` option indicates that the Dockerfile that should be used is the
-  file named `Dockerfile.full` instead of the default `Dockerfile`. (For the purposes of our
+  file named `Dockerfile.full` instead of the default `Dockerfile`. (For the purposes of this
   example, `Dockerfile.full` implements all suggested tips under [Dockerfile
   Tips][dockerfile-tips].)
 * The `image: docker-brownbag/todo` option indicates that the resulting image should be tagged as
@@ -2333,8 +2337,8 @@ will assume that the project is named `todo`, and will use that to do a few thin
 * Compose will automatically create a bridge network for our 2 services, which it will name
   `default` with the project name as a prefix, so `todo_default` in our case.
 
-(Note that you may specify another project name with the `-p` or `--project-name <name>` option of
-the `docker-compose` command.)
+(You may specify another project name with the `-p` or `--project-name <name>` option of the
+`docker-compose` command.)
 
 Finally, named data volumes must be declared, which is what the last section is for:
 
@@ -2342,6 +2346,8 @@ Finally, named data volumes must be declared, which is what the last section is 
 volumes:
   data:
 ```
+
+(There is nothing under `data:` because the default options are appropriate for this example.)
 
 [Back to top](#readme)
 
@@ -2409,8 +2415,10 @@ Removing todo_app_1 ... done
 Removing todo_db_1  ... done
 ```
 
-The network and data volume are preserved. To restart both containers, simply use `docker-compose
-up` again:
+The network and data volume remain.  (You could also use `docker-compose down` which would do the
+same thing and also remove the network.)
+
+To restart both containers, simply use `docker-compose up` again:
 
 ```bash
 $> docker-compose up -d
@@ -2418,8 +2426,8 @@ Creating todo_db_1 ... done
 Creating todo_app_1 ... done
 ```
 
-Docker Compose has many utility commands which simply working with a multi-container application.
-For example, the `docker-compose ps` command lists service containers:
+Docker Compose has many utility commands which **simplify working with a multi-container
+application**.  For example, the `docker-compose ps` command **lists services' containers**:
 
 ```bash
 $> docker-compose ps
@@ -2429,8 +2437,8 @@ todo_app_1   npm start                     Up      0.0.0.0:3000->3000/tcp
 todo_db_1    docker-entrypoint.sh mongod   Up      27017/tcp
 ```
 
-The `docker-compose logs <service>` command allows you to check a service's logs without knowing the
-exact name of the containers:
+The `docker-compose logs <service>` command allows you to **check a service's logs** without knowing
+the exact name or ID of the containers:
 
 ```bash
 $> docker-compose logs app
@@ -2490,8 +2498,8 @@ Recreating todo_app_1 ... done
 ```
 
 As expected, the build cache was invalidated since the application changed. Docker Compose therefore
-recreated the `todo_app_1` container. But it still left `todo_db_1` intact since the change did not
-affect the database, so no recreation was necessary.
+**recreated the `todo_app_1` container**. But it still **left `todo_db_1` intact** since the change
+did not affect the database, so no recreation was necessary.
 
 [Back to top](#readme)
 
@@ -2499,14 +2507,14 @@ affect the database, so no recreation was necessary.
 
 ### Starting containers automatically
 
-There are several reasons you might want to start your containers automatically rather than
+There are several reasons you might want to **start your containers automatically** rather than
 manually:
 
-* You want them to restart automatically if the host machine reboots.
-* You want them to restart automatically if the process in the container crashes due to a bug,
+* You want them to **restart automatically if the host machine reboots**.
+* You want them to **restart automatically if the process in the container crashes** due to a bug,
   causing the container to stop.
 
-Docker can be instructed to automatically start containers by using a restart policy either when
+Docker can be instructed to automatically start containers by using a **restart policy** either when
 running containers manually or when using Docker Compose:
 
 * Add a `--restart <policy>` option to your `docker run` command.
@@ -2554,14 +2562,14 @@ The available restart policies are:
 ### Horizontal scaling
 
 Let's say we expect many users to use our to-do app, and we're worried that our new infrastructure
-won't be able to handle the load. We're going to [scale horizontally][horizontal-scaling] by
-deploying multiple containers for our Node.js application.
+won't be able to handle the load. We're going to [**scale horizontally**][horizontal-scaling] by
+deploying **multiple containers for our Node.js application**.
 
-(We'll keep only 1 MongoDB server container for now, because setting up MongoDB replication is a bit
-more complicated.)
+(As mentioned before, we'll keep only 1 MongoDB server container running, because setting up MongoDB
+replication takes a bit more work.)
 
-If you've followed the previous examples, run the following command to bring down the
-entire infrastructure (except persistent data volumes):
+If you've followed the previous examples, run the following command to bring down the entire
+infrastructure (except persistent data volumes):
 
 ```bash
 $> docker-compose down
@@ -2573,9 +2581,9 @@ Removing network todo_default
 ```
 
 So far, our `app` container has its 3000 port published on your machine's 3000 port. That won't work
-if you deploy more than 1 container, as they can't all listen on the same port. You'll have to put a
-load balancer in front of your `app` containers, so that it can listen on the port, and redirect
-requests to the other containers.
+if you deploy more than 1 container, as they **can't all listen on the same port**. You'll have to
+put a **load balancer** in front of your `app` containers, so that it can listen on the port, and
+redirect requests to the other containers.
 
 Make the following changes to the `docker-compose.yml` in the `todo` directory:
 
@@ -2630,9 +2638,9 @@ default, nginx will use a round-robin strategy, meaning that each request will b
 next address. The `proxy_pass` directive instructs nginx to redirect all requests to the upstream
 group.
 
-You can run this entire infrastructure like before with the `docker-compose up` command. Note the
-use of the `--scale <service=num>` option to define the number of containers to create for the `app`
-service:
+You can **run this entire infrastructure** like before with the `docker-compose up` command. Note
+the use of the `--scale <service=num>` option to define the number of containers to create for the
+`app` service:
 
 ```bash
 $> docker-compose up --build -d --scale app=3
@@ -3625,7 +3633,7 @@ your `ENTRYPOINT` is `[ "npm" ]` and your `CMD` is `[ "start" ]`, the full comma
 container will be `npm start`. The `ENTRYPOINT` is not set by default.
 
 Another characteristic of the `ENTRYPOINT` instruction is that it is **not overriden** when you
-specify a different command to `docker run <image> <command...>`. Only the `CMD` instruction is
+specify a different command to `docker run <image> [command...]`. Only the `CMD` instruction is
 overriden. To override the entrypoint, you need to add the `--entrypoint` option to the `docker run`
 command.
 
@@ -3947,6 +3955,7 @@ products to the final stage.
 
 ## TODO
 
+* run multiple commands in a container: add `docker ps` example of running container
 * docker daemon
 * docker swarm secrets
 * dockerfile inheritance (all instructions, entrypoint, cmd)
@@ -4062,6 +4071,7 @@ products to the final stage.
 [nginx]: https://www.nginx.com
 [nginx-lb]: http://nginx.org/en/docs/http/load_balancing.html
 [node]: https://nodejs.org/en/
+[open-container-initiative]: https://www.opencontainers.org
 [raft]: https://raft.github.io
 [serf]: https://www.serf.io
 [service-discovery]: https://en.wikipedia.org/wiki/Service_discovery
