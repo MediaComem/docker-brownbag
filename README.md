@@ -3950,12 +3950,11 @@ products to the final stage.
 * docker daemon
 * docker swarm secrets
 * dockerfile inheritance (all instructions, entrypoint, cmd)
-* show file system isolation by `cat`-ing clock script
 * unix process signals
 * appendix: init process
 * appendix: multi-stage builds, react example
 * appendix: multi-process container (s6)
-* developing with Docker
+* appendix: developing with Docker
 
 [Back to top](#readme)
 
