@@ -1138,8 +1138,9 @@ used. For example, the `FROM` instruction corresponds to the `<image>` argument 
 
 ### Build an image from a Dockerfile
 
-Move to the `fortune-clock` directory in this repository. You will see that it contains the same
-clock script we used in the `fortune-clock:2.0` image, and a Dockerfile:
+Clone or download this repository, then move to its `fortune-clock` directory in your console. You
+will see that it contains the same clock script we used in the `fortune-clock:2.0` image, and a
+Dockerfile:
 
 ```bash
 $> cd fortune-clock
