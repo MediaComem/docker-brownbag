@@ -1891,7 +1891,7 @@ heading, you will see that it stores the MongoDB server's data under the `/data/
 container's file system. Let's bind mount a directory on your host machine to that directory, so
 that the data persists even after the container is removed.
 
-Rrun the database again, but add the `-v` or `--volume <hostDir:containerDir>` option to the `docker
+Run the database again, but add the `-v` or `--volume <hostDir:containerDir>` option to the `docker
 run` command:
 
 ```bash
