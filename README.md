@@ -611,16 +611,15 @@ It is Mon Apr 23 09:02:26 UTC 2018
 
 It is Tue Jun 14 21:58:18 UTC 2018
  _______________________________________
-/ I broke a chair ?! Did I just broke a \
-| chair ?!                              |
+/ I just broke a chair, did you know?   \
 |                                       |
-\ -- Anonymous iranian girl in Sweden   /                                      
+\ -- Anonymous Iranian girl in Sweden   /
  ---------------------------------------
         \   ^__^
          \  (^^)\_______
             (__)\       )\/\
                 ||----w |
-                ||     ||  
+                ||     ||
 ```
 
 Much better. Exit Bash to stop the container:
